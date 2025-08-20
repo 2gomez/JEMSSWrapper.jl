@@ -1,0 +1,24 @@
+# Julia
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+deps/build.log
+deps/deps.jl
+Manifest.toml
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Jupyter Notebook outputs
+*.ipynb_checkpoints
+*.nbconvert.ipynb
