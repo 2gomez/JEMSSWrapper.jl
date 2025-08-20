@@ -6,7 +6,8 @@ Core simulation initialization functionality adapted from the original modules.
 """
 module SimulationInitialization
 
-using ..ConfigLoader: SimulationConfig
+using ..ScenarioConfig: SimulationConfig
+using ..ScenarioValidation: validate_config
 
 export initialize_simulation, create_simulation_copy
 
@@ -22,6 +23,9 @@ Initialize a complete simulation from configuration.
 - Initialized JEMSS Simulation object
 """
 function initialize_simulation(config::SimulationConfig)
+    # Validate configuration
+    validate_config(config)
+    
     # Access JEMSS through the wrapper
     JEMSS = Main.JEMSSWrapper.jemss
     
@@ -59,15 +63,8 @@ function initialize_basic_simulation(config::SimulationConfig, JEMSS)
     sim.ambulances = JEMSS.readAmbsFile(config.ambulance_file)
     sim.hospitals = JEMSS.readHospitalsFile(config.hospitals_file)
     sim.stations = JEMSS.readStationsFile(config.stations_file)
-
-    if !isempty(config.calls_file)
-        (sim.calls, sim.startTime) = JEMSS.readCallsFile(config.calls_file)
-    elseif !isempty(config.call_gen_config_file)
-        callGenConfig = JEMSS.readGenConfig(config.call_gen_config_file)
-        sim.startTime = callGenConfig.startTime
-        sim.calls = JEMSS.makeCalls(callGenConfig)
-    end
-
+    (sim.calls, sim.startTime) = JEMSS.readCallsFile(config.calls_file)
+    
     # Setup basic properties
     sim.time = 0.0
     sim.numAmbs = length(sim.ambulances)

@@ -1,0 +1,27 @@
+# File: scenarios/auckland/configs/variant1.toml
+
+[metadata]
+name = "auckland_variant1"
+description = "Auckland scenario with alternative ambulance deployment"
+version = "1.0"
+
+[files]
+# Use different ambulance configuration
+ambulances = "ambulances/variant1.csv"
+hospitals = "hospitals/base.csv"
+stations = "stations/variant1.csv"
+
+# Same network and other files as base
+nodes = "roads/nodes.csv"
+arcs = "roads/arcs.csv"
+r_net_travels = ""  # Skip optional file
+map = "maps/base.csv"
+priorities = "misc/call priorities/base.csv"
+travel = "travel/base.csv"
+stats_control = "calls/generated/stats_control.csv"
+
+# Use 2019 monthly data by default
+calls = "calls/2019/01/2019-01.csv"
+
+[options]
+validate_files = false  # Skip validation for development

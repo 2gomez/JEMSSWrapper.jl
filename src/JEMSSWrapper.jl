@@ -1,8 +1,9 @@
+# src/JEMSSWrapper.jl
 module JEMSSWrapper
 
 using JEMSS
 
-@info "✅ Successfully loaded JEMSS from local fork"
+@info "✓ Successfully loaded JEMSS from local fork"
 
 # Path constants
 const WRAPPER_PATH = joinpath(@__DIR__, "..")
@@ -11,110 +12,114 @@ const JEMSS_PATH = joinpath(@__DIR__, "..", "deps", "JEMSS")
 # Make JEMSS accessible through JEMSSWrapper
 const jemss = JEMSS
 
-# Include all submodules
 include("utils/path_utils.jl")
-include("scenario/config.jl")
-include("scenario/validation.jl")
-include("scenario/loader.jl")
-include("simulation/initialization.jl")
-include("policy/interface.jl")
-include("evaluation/runner.jl")
-
-# Import modules
 using .PathUtils
-using .ScenarioConfig
-using .ScenarioValidation
-using .ScenarioLoader
+
+include("scenario/config.jl")
+using .ConfigLoader
+
+include("simulation/initialization.jl")
 using .SimulationInitialization
-using .PolicyInterface
-using .EvaluationRunner
 
-# Legacy function for compatibility
-function get_jemss_info()
-    return (
-        module_ref = JEMSS,
-        path = JEMSS_PATH,
-        exports = names(JEMSS, all=false)
-    )
-end
+include("scenario/loader.jl")
+using .ScenarioLoader
 
-# High-level convenience functions
 
-"""
-    load_scenario(scenario_name::String, calls_date::String = "2019-1-1")
+# # Load utility modules
+# include("utils/path_utils.jl")
+# using .PathUtils
 
-Load a scenario for policy evaluation.
+# # Load scenario management modules
+# include("scenario/config.jl")
+# using .ScenarioConfig
 
-# Arguments
-- `scenario_name::String`: Name of the scenario
-- `calls_date::String`: Date specification for calls data
+# include("scenario/validation.jl")
+# using .ScenarioValidation
 
-# Returns
-- `ScenarioData`: Loaded scenario data
+# include("scenario/config_loader.jl")
+# using .ConfigLoader
 
-# Example
-```julia
-scenario = JEMSSWrapper.load_scenario("wellington", "2019-1-1")
-```
-"""
-function load_scenario(scenario_name::String, calls_date::String = "2019-1-1")
-    return ScenarioLoader.load_scenario(scenario_name, calls_date)
-end
+# include("scenario/loader.jl")
+# using .ScenarioLoader
 
-"""
-    evaluate_policy(scenario_data, policy; num_replications::Int = 1)
+# # Load simulation modules
+# # include("simulation/initialization.jl")
+# # using .SimulationInitialization
 
-Evaluate a policy on a loaded scenario.
+# # Load policy modules
+# # include("policy/interface.jl")
+# # using .PolicyInterface
 
-# Arguments
-- `scenario_data`: Loaded scenario data
-- `policy`: Policy to evaluate
-- `num_replications::Int`: Number of simulation runs
+# # Load evaluation modules
+# # include("evaluation/runner.jl")
+# # using .EvaluationRunner
 
-# Returns
-- `Vector{SimulationResult}`: Results from evaluation
+# # Enhanced loader with TOML support
+# include("scenario/enhanced_loader.jl")
 
-# Example
-```julia
-scenario = JEMSSWrapper.load_scenario("wellington")
-policy = JEMSSWrapper.StandardMoveUpPolicy("standard")
-results = JEMSSWrapper.evaluate_policy(scenario, policy; num_replications=3)
-```
-"""
-function evaluate_policy(scenario_data, policy; num_replications::Int = 1)
-    return EvaluationRunner.evaluate_policy(scenario_data.config, policy; num_replications=num_replications)
-end
+# # Export main API functions
+# export get_jemss_info, jemss
 
-"""
-    create_standard_policy(strategy::String = "standard")
+# # Scenario loading (original API - backward compatible)
+# export load_scenario, load_scenario_config
 
-Create a standard move-up policy.
+# # Enhanced scenario loading with TOML configs
+# export load_scenario_from_config, load_scenario_from_config_file, generate_default_config
 
-# Arguments
-- `strategy::String`: Strategy name ("standard", "dmexclp")
+# # Policy management
+# export create_standard_policy
 
-# Returns
-- `StandardMoveUpPolicy`: Policy object
+# # Evaluation
+# export evaluate_policy
 
-# Example
-```julia
-policy = JEMSSWrapper.create_standard_policy("dmexclp")
-```
-"""
-function create_standard_policy(strategy::String = "standard")
-    return StandardMoveUpPolicy(strategy)
-end
+# # Additional utilities
+# export list_scenario_configs
 
-# Main exports - high-level API
-export load_scenario, evaluate_policy, create_standard_policy
+# # Function to get JEMSS module info (backward compatibility)
+# function get_jemss_info()
+#     return (
+#         module_ref = JEMSS,
+#         path = JEMSS_PATH,
+#         exports = names(JEMSS, all=false)
+#     )
+# end
 
-# Type exports
-export ScenarioData, SimulationResult, StandardMoveUpPolicy
+# # Policy creation helper (backward compatibility)
+# function create_standard_policy(strategy::String = "standard")
+#     return StandardMoveUpPolicy(strategy)
+# end
 
-# Utility exports
-export get_jemss_info, jemss
+# """
+#     list_scenario_configs(scenario_name; scenarios_base_dir="")
 
-# Module exports for advanced usage
-export ScenarioLoader, EvaluationRunner, PolicyInterface
+# List available configuration files for a scenario.
+
+# # Arguments
+# - `scenario_name::String`: Name of the scenario
+# - `scenarios_base_dir::String`: Base directory containing scenarios
+
+# # Returns
+# - `Vector{String}`: List of available config names
+# """
+# function list_scenario_configs(scenario_name::String; scenarios_base_dir::String = "")
+#     return ConfigLoader.list_config_files(scenario_name, scenarios_base_dir)
+# end
+
+# """
+#     evaluate_policy(scenario_data, policy; num_replications=1)
+
+# Evaluate a policy on loaded scenario data.
+
+# # Arguments
+# - `scenario_data`: ScenarioData object from load_scenario* functions
+# - `policy`: MoveUpPolicy to evaluate
+# - `num_replications::Int`: Number of simulation replications
+
+# # Returns
+# - `Vector{SimulationResult}`: Results from all replications
+# """
+# function evaluate_policy(scenario_data, policy; num_replications::Int = 1)
+#     return EvaluationRunner.evaluate_policy(scenario_data.config, policy; num_replications=num_replications)
+# end
 
 end # module JEMSSWrapper
