@@ -4,35 +4,15 @@ scenario_name = "auckland"
 description = "Auckland scenario with standard configuration"
 version = "1.0"
 author = "JEMSSWrapper"
-data_dir = "deps/JEMSS/data/cities/auckland/models/1/" # relative to WRAPPER_PATH
+data_dir = "deps/JEMSS/data/cities/auckland/models/1" # relative to WRAPPER_PATH
 
 [files]
-# Infrastructure files
-ambulances = "ambulances/ambulances_1.csv"
-hospitals = "hospitals/hospitals_1.csv" 
+hospitals = "hospitals/hospitals_1.csv"
 stations = "stations/stations_1.csv"
-
-# Road network files
 nodes = "travel/roads/nodes.csv"
 arcs = "travel/roads/arcs.csv"
-r_net_travels = "travel/roads/r_net_travels_jl-v1.10.8.jls"  # Optional - can be empty string ""
-
-# Map and routing files
+r_net_travels = "travel/roads/r_net_travels_jl-v1.10.8.jls"
 map = "maps/map_1.csv"
-priorities = "misc/call priorities/priorities_1.csv"
 travel = "travel/travel/travel_1.csv"
-
-# Control files  
-stats_control = "calls/single/train/stats_control.csv"
-
-# Calls
-call_gen_config = "calls/single/train/gen_config.xml"
-
-# Demand
-demand = "demand/demand_1.csv"
-demand_coverage = "demand/coverage/demand_coverage_1.csv"
-
-# [options]
-# Validation options
-# validate_files = true
-# allow_missing_r_net_travels = true
+priorities = "misc/call priorities/priorities_1.csv"
+stats = "calls/single/train/stats_control.csv"

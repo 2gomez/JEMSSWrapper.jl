@@ -2,13 +2,38 @@
 SimulationInitialization
 ========================
 
-Core simulation initialization functionality adapted from the original modules.
+Core Simulation initialization functionality adapted from the original modules.
 """
 module SimulationInitialization
 
+using JEMSS
 using ..ConfigLoader: SimulationConfig
 
-export initialize_simulation, create_simulation_copy
+export initialize_simulation, set_ambulances_data!, create_simulation_copy, set_calls!
+
+"""
+    set_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
+
+Set a vector of calls in a simulation.
+"""
+function set_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
+    sim.calls = deepcopy(calls)
+    sim.numCalls = length(calls)
+    JEMSS.addEvent!(sim.eventList, sim.calls[1])
+end
+
+
+"""
+    set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
+
+Set the ambulances data in a simulation object.
+"""
+function set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
+    ambulances = JEMSS.readAmbsFile(ambulances_path)
+    sim.ambulances = ambulances
+    sim.numAmbs = length(ambulances)
+end
+
 
 """
     initialize_simulation(config::SimulationConfig)
@@ -19,59 +44,44 @@ Initialize a complete simulation from configuration.
 - `config::SimulationConfig`: Configuration with file paths
 
 # Returns
-- Initialized JEMSS Simulation object
+- `JEMSS.Simulation`: Initialized JEMSS Simulation object of the Simulation
 """
-function initialize_simulation(config::SimulationConfig)
-    # Access JEMSS through the wrapper
-    JEMSS = Main.JEMSSWrapper.jemss
-    
+function initialize_simulation(config::SimulationConfig)    
     # Create basic simulation
-    sim = initialize_basic_simulation(config, JEMSS)
+    sim = initialize_basic_simulation(config)
     
     # Setup network
-    setup_network!(sim, config, JEMSS)
+    setup_network!(sim, config)
     
     # Setup travel system
-    setup_travel_system!(sim, JEMSS)
+    setup_travel_system!(sim)
     
     # Setup routing
-    setup_location_routing!(sim, JEMSS)
+    setup_location_routing!(sim)
     
     # Setup statistics
-    setup_simulation_statistics!(sim, config.stats_file, JEMSS)
-    
-    # Finalize initialization
-    finalize_simulation_initialization!(sim, JEMSS)
+    setup_simulation_statistics!(sim, config.stats_file)
     
     sim.initialised = true
+    
     return sim
 end
 
 """
-    initialize_basic_simulation(config::SimulationConfig, JEMSS)
+    initialize_basic_simulation(config::SimulationConfig)
 
 Initialize basic simulation structures.
 """
-function initialize_basic_simulation(config::SimulationConfig, JEMSS)
+function initialize_basic_simulation(config::SimulationConfig)
     sim = JEMSS.Simulation()
     
     # Load basic data
-    sim.ambulances = JEMSS.readAmbsFile(config.ambulance_file)
     sim.hospitals = JEMSS.readHospitalsFile(config.hospitals_file)
     sim.stations = JEMSS.readStationsFile(config.stations_file)
 
-    if !isempty(config.calls_file)
-        (sim.calls, sim.startTime) = JEMSS.readCallsFile(config.calls_file)
-    elseif !isempty(config.call_gen_config_file)
-        callGenConfig = JEMSS.readGenConfig(config.call_gen_config_file)
-        sim.startTime = callGenConfig.startTime
-        sim.calls = JEMSS.makeCalls(callGenConfig)
-    end
-
     # Setup basic properties
     sim.time = 0.0
-    sim.numAmbs = length(sim.ambulances)
-    sim.numCalls = length(sim.calls)
+    sim.startTime = 0.0
     sim.numHospitals = length(sim.hospitals)
     sim.numStations = length(sim.stations)
     sim.eventList = Vector{JEMSS.Event}()
@@ -84,22 +94,29 @@ function initialize_basic_simulation(config::SimulationConfig, JEMSS)
     # Setup basic behavior
     sim.addCallToQueue! = JEMSS.addCallToQueueSortPriorityThenTime!
     sim.findAmbToDispatch! = JEMSS.findNearestDispatchableAmb!
-    
+    sim.moveUpData.useMoveUp = false
+    sim.moveUpData.moveUpModule = JEMSS.nullMoveUpModule
+
     return sim
 end
 
 """
-    setup_network!(sim, config::SimulationConfig, JEMSS)
+    setup_network!(sim, config::SimulationConfig)
 
 Setup the road network and graph.
 """
-function setup_network!(sim, config::SimulationConfig, JEMSS)
+function setup_network!(sim, config::SimulationConfig)
     sim.net = JEMSS.Network()
     
     # Setup graph
     sim.net.fGraph.nodes = JEMSS.readNodesFile(config.nodes_file)
     (sim.net.fGraph.arcs, arcTravelTimes) = JEMSS.readArcsFile(config.arcs_file)
+    rNetTravelsLoaded = load_r_net_travels(config.r_net_travel_file)
     
+    nx, ny = calculate_grid_dimensions(sim.net.fGraph.nodes, sim.map)
+    sim.grid = JEMSS.Grid(sim.map, nx, ny)
+    JEMSS.gridPlaceNodes!(sim.map, sim.grid, sim.net.fGraph.nodes)
+
     JEMSS.initGraph!(sim.net.fGraph)
     
     # Set arc distances if needed
@@ -109,26 +126,17 @@ function setup_network!(sim, config::SimulationConfig, JEMSS)
     
     JEMSS.checkGraph(sim.net.fGraph, sim.map)
     JEMSS.initFNetTravels!(sim.net, arcTravelTimes)
-    
-    # Setup grid
-    nx, ny = calculate_grid_dimensions(sim.net.fGraph.nodes, sim.map)
-    sim.grid = JEMSS.Grid(sim.map, nx, ny)
-    JEMSS.gridPlaceNodes!(sim.map, sim.grid, sim.net.fGraph.nodes)
-    
-    # Load r_net_travels if available
-    rNetTravelsLoaded = load_r_net_travels(config.r_net_travel_file, JEMSS)
-    
     JEMSS.createRGraphFromFGraph!(sim.net)
     JEMSS.checkGraph(sim.net.rGraph, sim.map)
     JEMSS.createRNetTravelsFromFNetTravels!(sim.net; rNetTravelsLoaded=rNetTravelsLoaded)
 end
 
 """
-    setup_travel_system!(sim, JEMSS)
+    setup_travel_system!(sim)
 
 Setup travel modes and link to network.
 """
-function setup_travel_system!(sim, JEMSS)
+function setup_travel_system!(sim)
     # Validate travel configuration
     @assert(sim.travel.setsStartTimes[1] <= sim.startTime)
     @assert(length(sim.net.fNetTravels) == sim.travel.numModes)
@@ -138,13 +146,7 @@ function setup_travel_system!(sim, JEMSS)
         travelMode.fNetTravel = sim.net.fNetTravels[travelMode.index]
         travelMode.rNetTravel = sim.net.rNetTravels[travelMode.index]
     end
-    
-    # Setup location nearest nodes
-    for call in sim.calls
-        call.nearestNodeIndex, call.nearestNodeDist = 
-            JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
-    end
-    
+       
     for hospital in sim.hospitals
         hospital.nearestNodeIndex, hospital.nearestNodeDist = 
             JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, hospital.location)
@@ -163,11 +165,11 @@ function setup_travel_system!(sim, JEMSS)
 end
 
 """
-    setup_location_routing!(sim, JEMSS)
+    setup_location_routing!(sim)
 
 Setup routing to hospitals.
 """
-function setup_location_routing!(sim, JEMSS)
+function setup_location_routing!(sim)
     numFNodes = length(sim.net.fGraph.nodes)
     
     for fNetTravel in sim.net.fNetTravels
@@ -175,18 +177,18 @@ function setup_location_routing!(sim, JEMSS)
         travelMode = sim.travel.modes[fNetTravel.modeIndex]
         
         for node in sim.net.fGraph.nodes
-            nearestHospitalIndex = find_nearest_hospital_to_node(node, sim.hospitals, sim.net, travelMode, JEMSS)
+            nearestHospitalIndex = find_nearest_hospital_to_node(node, sim.hospitals, sim.net, travelMode)
             fNetTravel.fNodeNearestHospitalIndex[node.index] = nearestHospitalIndex
         end
     end
 end
 
 """
-    setup_simulation_statistics!(sim, stats_file::String, JEMSS)
+    setup_simulation_statistics!(sim, stats_file::String)
 
 Setup simulation statistics.
 """
-function setup_simulation_statistics!(sim, stats_file::String, JEMSS)
+function setup_simulation_statistics!(sim, stats_file::String)
     stats = sim.stats
     stats.doCapture = true
     
@@ -208,72 +210,43 @@ function setup_simulation_statistics!(sim, stats_file::String, JEMSS)
 end
 
 """
-    finalize_simulation_initialization!(sim, JEMSS)
-
-Complete simulation initialization.
-"""
-function finalize_simulation_initialization!(sim, JEMSS)
-    # Add first call to event list
-    if !isempty(sim.calls)
-        JEMSS.addEvent!(sim.eventList, sim.calls[1])
-    end
-    
-    # Initialize station tracking
-    for station in sim.stations
-        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(Float64, sim.numAmbs + 1), 0:sim.numAmbs)
-        station.currentNumIdleAmbsSetTime = sim.startTime
-    end
-    
-    # Initialize ambulances
-    for ambulance in sim.ambulances
-        JEMSS.initAmbulance!(sim, ambulance)
-    end
-end
-
-"""
     create_simulation_copy(sim)
 
 Create a deep copy of simulation data for multiple runs.
 """
-function create_simulation_copy(sim)
-    JEMSS = Main.JEMSSWrapper.jemss
-    
-    sim_copy = JEMSS.Simulation()
+function create_simulation_copy(sim)    
+    sim_copy = Simulation()
     sim_copy.time = 0.0
     sim_copy.startTime = 0.0
+    sim_copy.numAmbs = sim.numAmbs
     sim_copy.numHospitals = sim.numHospitals
     sim_copy.numStations = sim.numStations
     sim_copy.ambulances = deepcopy(sim.ambulances)
     sim_copy.hospitals = deepcopy(sim.hospitals)
     sim_copy.stations = deepcopy(sim.stations)
-    sim_copy.calls = deepcopy(sim.calls)
-    sim_copy.net = sim.net # shallow copy
+    sim_copy.net = sim.net # shallow copy, this is the heavy part of the object
     sim_copy.map = deepcopy(sim.map)
     sim_copy.targetResponseDurations = deepcopy(sim.targetResponseDurations)
     sim_copy.responseTravelPriorities = deepcopy(sim.responseTravelPriorities)
-    sim_copy.travel = sim.travel # shallow copy
+    sim_copy.travel = sim.travel # shallow copy, this is the heavy part of the object
     sim_copy.grid = deepcopy(sim.grid)
-    sim_copy.eventList = Vector{JEMSS.Event}()
-    
-    sim_copy.addCallToQueue! = JEMSS.addCallToQueueSortPriorityThenTime!
-    sim_copy.findAmbToDispatch! = JEMSS.findNearestDispatchableAmb!
-    JEMSS.addEvent!(sim_copy.eventList, sim_copy.calls[1])
-    
     for station in sim_copy.stations
-        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(Float64, sim.numAmbs + 1), 0:sim.numAmbs)
+        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(JEMSS.Float, sim.numAmbs + 1), 0:sim.numAmbs)
         station.currentNumIdleAmbsSetTime = sim.startTime
     end
-    sim_copy.initialised = sim.initialised
-    
-    for ambulance in sim.ambulances
+    sim_copy.addCallToQueue! = sim.addCallToQueue!
+    sim_copy.findAmbToDispatch! = sim.findAmbToDispatch!
+
+    sim_copy.eventList = Vector{Event}()
+    for ambulance in sim_copy.ambulances
         JEMSS.initAmbulance!(sim_copy, ambulance)
     end
-    
+
+    sim_copy.initialised = sim.initialised
     return sim_copy
 end
 
 # Helper functions
-
 function calculate_grid_dimensions(nodes, map)
     n = length(nodes)
     xDist = map.xRange * map.xScale
@@ -283,11 +256,11 @@ function calculate_grid_dimensions(nodes, map)
     return nx, ny
 end
 
-function load_r_net_travels(r_net_travel_file::String, JEMSS)
+function load_r_net_travels(r_net_travel_file::String)
     return isempty(r_net_travel_file) ? JEMSS.NetTravel[] : JEMSS.readRNetTravelsFile(r_net_travel_file)
 end
 
-function find_nearest_hospital_to_node(node, hospitals, net, travelMode, JEMSS)
+function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
     minTime = Inf
     nearestHospitalIndex = JEMSS.nullIndex
     
