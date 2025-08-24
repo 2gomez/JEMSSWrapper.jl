@@ -8,9 +8,9 @@ module ScenarioLoader
 
 using Dates
 using JEMSS
-using ..PathUtils: PROJECT_ROOT, SCENARIOS_DIR
+using ..PathUtils: PROJECT_DIR, SCENARIOS_DIR
 using ..ConfigLoader: SimulationConfig, create_config_from_toml
-using ..SimulationInitialization: initialize_simulation, set_ambulances_data!
+using ..SimulationInitialization: initialize_simulation, set_ambulances_data!, initialize_calls
 
 export load_scenario_from_config, Scenario
 
@@ -23,12 +23,9 @@ the scenario and its metadata. The simulation objects does not contains all abou
 """
 struct Scenario
     base_sim::JEMSS.Simulation
+    calls_sets::Vector{Vector{JEMSS.Call}}
     metadata::Dict{String, Any}
 end
-# struct WrappedSimulator
-#     simulator::Simulation
-#     calls::Vector{Vector{Call}}
-# end
 
 """
     load_scenario_from_config(scenario_name::String, 
@@ -42,6 +39,8 @@ Load a scenario using a TOML configuration file.
 - `scenario_name::String`: Name of the scenario
 - `config_name::String`: Name of the config file (with or without .toml extension)
 - `ambulances_file::String`: Filename of the ambulances data
+- `call_file::String`: Filename of the calls data (calls or call generator configuration)
+- `num_sets:Int`: Number of sets to split the calls
 - `scenarios_base_dir::String`: Base directory containing scenarios
 
 # Returns
@@ -51,6 +50,8 @@ Load a scenario using a TOML configuration file.
 function load_scenario_from_config(scenario_name::String, 
                                   config_name::String,
                                   ambulances_file::String,
+                                  calls_file::String,
+                                  num_sets::Int = 1,
                                   scenarios_base_dir::String = SCENARIOS_DIR)
     
     @info "Loading scenario from config: $scenario_name/configs/$config_name"
@@ -61,11 +62,12 @@ function load_scenario_from_config(scenario_name::String,
     # Create simulation config
     sim_config = create_config_from_toml(config_path)
 
-    # Resolve ambulance file path
-    ambulances_path = joinpath(PROJECT_ROOT, sim_config.data_dir, ambulances_file)
+    # Resolve ambulance file and calls file path
+    ambulances_path = joinpath(PROJECT_DIR, sim_config.data_dir, ambulances_file)
+    calls_path = joinpath(PROJECT_DIR, sim_config.data_dir, calls_file)
         
     # Use existing loading infrastructure
-    return load_scenario(sim_config, ambulances_path)
+    return load_scenario(sim_config, ambulances_path, calls_path, num_sets)
 end
 
 """
@@ -73,31 +75,27 @@ end
 
 Internal function to load scenario from SimulationConfig.
 """
-function load_scenario(sim_config::SimulationConfig, ambulances_path::String)    
-    # Initialize simulation
+function load_scenario(sim_config::SimulationConfig, ambulances_path::String, 
+                      calls_path::String, num_sets::Int)
+
     @info "Initializing simulation..."
     base_sim = initialize_simulation(sim_config)
-    set_ambulances_data!(base_sim, ambulances_path)    
+    set_ambulances_data!(base_sim, ambulances_path)
+    calls_sets = initialize_calls(base_sim, calls_path, num_sets)
     
-    # Create enhanced metadata
     metadata = Dict{String, Any}(
         "loaded_at" => now(),
         "config_name" => sim_config.config_name,
         "scenario_name" => sim_config.scenario_name,
         "config_file" => sim_config.config_path,
         "data_dir" => sim_config.data_dir,
-        "num_ambulances" => base_sim.numAmbs,
-        "num_hospitals" => base_sim.numHospitals,
-        "num_stations" => base_sim.numStations
+        "ambulance_path" => ambulances_path,
+        "calls_path" => calls_path
     )
     
-    @info "Scenario loaded successfully!" *
-          " Config: $(basename(sim_config.config_name))" *
-          " | Ambulances: $(metadata["num_ambulances"])" *
-          " | Hospitals: $(metadata["num_hospitals"])" *
-          " | Stations: $(metadata["num_stations"])"
+    @info "Scenario loaded successfully!"
     
-    return Scenario(base_sim, metadata)
+    return Scenario(base_sim, calls_sets, metadata)
 end
 
 end # module ScenarioLoader

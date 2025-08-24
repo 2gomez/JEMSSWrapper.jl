@@ -8,7 +8,7 @@ TOML-based configuration loading for flexible scenario setup.
 module ConfigLoader
 
 using TOML
-using ..PathUtils: PROJECT_ROOT
+using ..PathUtils: PROJECT_DIR
 
 export create_config_from_toml
 
@@ -101,7 +101,7 @@ function create_config_from_toml(config_path::String)
     # Helper function to get file path and join with data_dir
     get_file_path(key) = begin
         filename = get(files, key, default_files[key])
-        isempty(filename) ? filename : joinpath(PROJECT_ROOT, data_dir, filename)
+        isempty(filename) ? filename : joinpath(PROJECT_DIR, data_dir, filename)
     end
     
     return SimulationConfig(

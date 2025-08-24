@@ -20,17 +20,12 @@ using .SimulationInitialization
 include("scenario/loader.jl")
 using .ScenarioLoader
 
-export get_jemss_info, jemss
-export PROJECT_ROOT, JEMSS_DIR
-export load_scenario_from_config, create_simulation_copy, set_calls!
+include("simulation/replication.jl")
+using .SimulationReplication
 
-# Function to get JEMSS module info (backward compatibility)
-function get_jemss_info()
-    return (
-        module_ref = JEMSS,
-        path = JEMSS_DIR,
-        exports = names(JEMSS, all=false)
-    )
-end
+export get_jemss_info, jemss
+export PROJECT_DIR, JEMSS_DIR
+export load_scenario_from_config, create_simulation_copy, set_calls!
+export create_simulation_instances
 
 end # module JEMSSWrapper

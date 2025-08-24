@@ -9,19 +9,32 @@ module SimulationInitialization
 using JEMSS
 using ..ConfigLoader: SimulationConfig
 
-export initialize_simulation, set_ambulances_data!, create_simulation_copy, set_calls!
+export initialize_simulation, set_ambulances_data!, create_simulation_copy, initialize_calls
+
 
 """
-    set_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
+    initialize_calls(filepath::String, num_sets::Int = 1)
 
-Set a vector of calls in a simulation.
+Initialize the calls from a CSV file with the calls or from a XML generation call configuration file.
+Then the calls are splitted different sets.
 """
-function set_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
-    sim.calls = deepcopy(calls)
-    sim.numCalls = length(calls)
-    JEMSS.addEvent!(sim.eventList, sim.calls[1])
+function initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
+    
+    # Load the calls
+    if endswith(filepath, ".csv")
+        calls, _ = JEMSS.readCallsFile(filepath)
+    elseif endswith(filepath, ".xml")
+        callGenConfig = JEMSS.readGenConfig(filepath)
+        calls = JEMSS.makeCalls(callGenConfig)
+    end
+
+    # Find nearest nodes
+    for call in calls
+        (call.nearestNodeIndex, call.nearestNodeDist) = findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
+    end
+
+    return split_vector(calls, num_sets)
 end
-
 
 """
     set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
@@ -209,43 +222,6 @@ function setup_simulation_statistics!(sim, stats_file::String)
     stats.nextCaptureTime = sim.startTime + warmup_duration
 end
 
-"""
-    create_simulation_copy(sim)
-
-Create a deep copy of simulation data for multiple runs.
-"""
-function create_simulation_copy(sim)    
-    sim_copy = Simulation()
-    sim_copy.time = 0.0
-    sim_copy.startTime = 0.0
-    sim_copy.numAmbs = sim.numAmbs
-    sim_copy.numHospitals = sim.numHospitals
-    sim_copy.numStations = sim.numStations
-    sim_copy.ambulances = deepcopy(sim.ambulances)
-    sim_copy.hospitals = deepcopy(sim.hospitals)
-    sim_copy.stations = deepcopy(sim.stations)
-    sim_copy.net = sim.net # shallow copy, this is the heavy part of the object
-    sim_copy.map = deepcopy(sim.map)
-    sim_copy.targetResponseDurations = deepcopy(sim.targetResponseDurations)
-    sim_copy.responseTravelPriorities = deepcopy(sim.responseTravelPriorities)
-    sim_copy.travel = sim.travel # shallow copy, this is the heavy part of the object
-    sim_copy.grid = deepcopy(sim.grid)
-    for station in sim_copy.stations
-        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(JEMSS.Float, sim.numAmbs + 1), 0:sim.numAmbs)
-        station.currentNumIdleAmbsSetTime = sim.startTime
-    end
-    sim_copy.addCallToQueue! = sim.addCallToQueue!
-    sim_copy.findAmbToDispatch! = sim.findAmbToDispatch!
-
-    sim_copy.eventList = Vector{Event}()
-    for ambulance in sim_copy.ambulances
-        JEMSS.initAmbulance!(sim_copy, ambulance)
-    end
-
-    sim_copy.initialised = sim.initialised
-    return sim_copy
-end
-
 # Helper functions
 function calculate_grid_dimensions(nodes, map)
     n = length(nodes)
@@ -276,6 +252,24 @@ function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
     end
     
     return nearestHospitalIndex
+end
+
+function split_vector(vector::Vector, num_parts::Int)
+    @assert num_parts > 0 "Number of parts must be positive"
+    
+    length_part = length(vector) ÷ num_parts
+    remainder = length(vector) % num_parts
+    
+    parts = Vector{Vector}(undef, num_parts)
+    start_index = 1
+    
+    for i in 1:num_parts
+        current_length = length_part + (i <= remainder ? 1 : 0)
+        parts[i] = vector[start_index:start_index+current_length-1]
+        start_index += current_length
+    end
+    
+    return parts
 end
 
 end # module SimulationInitialization
