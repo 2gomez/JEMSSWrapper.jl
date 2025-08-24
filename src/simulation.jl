@@ -1,63 +1,25 @@
 """
-SimulationInitialization
-========================
+Simulation
+==========
 
-Core Simulation initialization functionality adapted from the original modules.
+Unified simulation management including initialization and replication.
+Consolidates functionality from initialization.jl and replication.jl.
 """
-module SimulationInitialization
+module Simulation
 
 using JEMSS
-using ..ConfigLoader: SimulationConfig
+using ..Types: SimulationConfig, ScenarioData
 
-export initialize_simulation, set_ambulances_data!, create_simulation_copy, initialize_calls
+export initialize_simulation, set_ambulances_data!, initialize_calls, create_simulation_instances
 
-
-"""
-    initialize_calls(filepath::String, num_sets::Int = 1)
-
-Initialize the calls from a CSV file with the calls or from a XML generation call configuration file.
-Then the calls are splitted different sets.
-"""
-function initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
-    
-    # Load the calls
-    if endswith(filepath, ".csv")
-        calls, _ = JEMSS.readCallsFile(filepath)
-    elseif endswith(filepath, ".xml")
-        callGenConfig = JEMSS.readGenConfig(filepath)
-        calls = JEMSS.makeCalls(callGenConfig)
-    end
-
-    # Find nearest nodes
-    for call in calls
-        (call.nearestNodeIndex, call.nearestNodeDist) = findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
-    end
-
-    return split_vector(calls, num_sets)
-end
-
-"""
-    set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
-
-Set the ambulances data in a simulation object.
-"""
-function set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
-    ambulances = JEMSS.readAmbsFile(ambulances_path)
-    sim.ambulances = ambulances
-    sim.numAmbs = length(ambulances)
-end
-
+# =============================================================================
+# SIMULATION INITIALIZATION FUNCTIONS
+# =============================================================================
 
 """
     initialize_simulation(config::SimulationConfig)
 
 Initialize a complete simulation from configuration.
-
-# Arguments
-- `config::SimulationConfig`: Configuration with file paths
-
-# Returns
-- `JEMSS.Simulation`: Initialized JEMSS Simulation object of the Simulation
 """
 function initialize_simulation(config::SimulationConfig)    
     # Create basic simulation
@@ -79,6 +41,69 @@ function initialize_simulation(config::SimulationConfig)
     
     return sim
 end
+
+"""
+    set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
+
+Set the ambulances data in a simulation object.
+"""
+function set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
+    ambulances = JEMSS.readAmbsFile(ambulances_path)
+    sim.ambulances = ambulances
+    sim.numAmbs = length(ambulances)
+end
+
+"""
+    initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
+
+Initialize calls from CSV or XML file and split into sets.
+"""
+function initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
+    # Load the calls
+    if endswith(filepath, ".csv")
+        calls, _ = JEMSS.readCallsFile(filepath)
+    elseif endswith(filepath, ".xml")
+        callGenConfig = JEMSS.readGenConfig(filepath)
+        calls = JEMSS.makeCalls(callGenConfig)
+    else
+        throw(ArgumentError("Unsupported file format. Use .csv or .xml"))
+    end
+
+    # Find nearest nodes
+    for call in calls
+        (call.nearestNodeIndex, call.nearestNodeDist) = JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
+    end
+
+    return split_vector(calls, num_sets)
+end
+
+# =============================================================================
+# SIMULATION REPLICATION FUNCTIONS
+# =============================================================================
+
+"""
+    create_simulation_instances(scenario::ScenarioData)
+
+Create simulation instances for each call set in the scenario.
+"""
+function create_simulation_instances(scenario::ScenarioData)
+    base_sim = scenario.base_simulation
+    call_sets = scenario.call_sets
+    
+    instances = Vector{JEMSS.Simulation}(undef, length(call_sets))
+    
+    for (i, calls) in enumerate(call_sets)
+        sim_copy = copy_base_simulation(base_sim)
+        add_calls!(sim_copy, calls)
+        instances[i] = sim_copy
+    end
+
+    return instances
+end
+
+# =============================================================================
+# INTERNAL/HELPER FUNCTIONS
+# =============================================================================
 
 """
     initialize_basic_simulation(config::SimulationConfig)
@@ -222,7 +247,68 @@ function setup_simulation_statistics!(sim, stats_file::String)
     stats.nextCaptureTime = sim.startTime + warmup_duration
 end
 
-# Helper functions
+"""
+    copy_base_simulation(sim::JEMSS.Simulation)
+
+Create a deep copy of a base simulation for replication.
+"""
+function copy_base_simulation(sim::JEMSS.Simulation)
+    sim_copy = JEMSS.Simulation()
+    sim_copy.time = 0.0
+    sim_copy.startTime = 0.0
+    sim_copy.numAmbs = sim.numAmbs
+    sim_copy.numHospitals = sim.numHospitals
+    sim_copy.numStations = sim.numStations
+    sim_copy.ambulances = deepcopy(sim.ambulances)
+    sim_copy.hospitals = deepcopy(sim.hospitals)
+    sim_copy.stations = deepcopy(sim.stations)
+    sim_copy.net = sim.net # shallow copy, this is the heavy part of the object
+    sim_copy.map = deepcopy(sim.map)
+    sim_copy.targetResponseDurations = deepcopy(sim.targetResponseDurations)
+    sim_copy.responseTravelPriorities = deepcopy(sim.responseTravelPriorities)
+    sim_copy.travel = sim.travel # shallow copy, this is the heavy part of the object
+    sim_copy.grid = deepcopy(sim.grid)
+    
+    # Reset station statistics
+    for station in sim_copy.stations
+        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(JEMSS.Float, sim.numAmbs + 1), 0:sim.numAmbs)
+        station.currentNumIdleAmbsSetTime = sim.startTime
+    end
+    
+    sim_copy.addCallToQueue! = sim.addCallToQueue!
+    sim_copy.findAmbToDispatch! = sim.findAmbToDispatch!
+
+    sim_copy.eventList = Vector{JEMSS.Event}()
+    
+    # Initialize ambulances
+    for ambulance in sim_copy.ambulances
+        JEMSS.initAmbulance!(sim_copy, ambulance)
+    end
+
+    sim_copy.initialised = sim.initialised
+    return sim_copy
+end
+
+"""
+    add_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
+
+Add a vector of calls to the simulation.
+"""
+function add_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
+    sim.calls = deepcopy(calls)
+    sim.numCalls = length(calls)
+    JEMSS.addEvent!(sim.eventList, sim.calls[1])
+end
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+"""
+    calculate_grid_dimensions(nodes, map)
+
+Calculate optimal grid dimensions for node placement.
+"""
 function calculate_grid_dimensions(nodes, map)
     n = length(nodes)
     xDist = map.xRange * map.xScale
@@ -232,10 +318,20 @@ function calculate_grid_dimensions(nodes, map)
     return nx, ny
 end
 
+"""
+    load_r_net_travels(r_net_travel_file::String)
+
+Load R-network travels if file exists, otherwise return empty array.
+"""
 function load_r_net_travels(r_net_travel_file::String)
     return isempty(r_net_travel_file) ? JEMSS.NetTravel[] : JEMSS.readRNetTravelsFile(r_net_travel_file)
 end
 
+"""
+    find_nearest_hospital_to_node(node, hospitals, net, travelMode)
+
+Find the nearest hospital to a given node using travel time.
+"""
 function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
     minTime = Inf
     nearestHospitalIndex = JEMSS.nullIndex
@@ -254,6 +350,11 @@ function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
     return nearestHospitalIndex
 end
 
+"""
+    split_vector(vector::Vector, num_parts::Int)
+
+Split a vector into roughly equal parts.
+"""
 function split_vector(vector::Vector, num_parts::Int)
     @assert num_parts > 0 "Number of parts must be positive"
     
@@ -272,4 +373,4 @@ function split_vector(vector::Vector, num_parts::Int)
     return parts
 end
 
-end # module SimulationInitialization
+end # module Simulation
