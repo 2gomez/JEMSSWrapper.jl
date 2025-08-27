@@ -3,7 +3,7 @@
 JEMSSWrapper
 ============
 
-Main wrapper module for JEMSS simulation framework.
+Main wrapper module for JEMSS simulation framework with extensible move-up strategies.
 """
 module JEMSSWrapper
 
@@ -21,11 +21,20 @@ using .PathUtils
 include("types.jl")
 using .Types
 
-include("simulation.jl")
-using .Simulation
+include("moveup.jl")
+using .MoveUp
+
+include("initialization.jl")
+using .Initialization
 
 include("scenario.jl")
 using .Scenario
+
+include("replication.jl")
+using .Replication
+
+include("simulation.jl")
+using .Simulation
 
 # Main exports
 export 
@@ -36,13 +45,20 @@ export
     PROJECT_DIR, JEMSS_DIR, SCENARIOS_DIR,
     
     # Types 
-    SimulationConfig, ScenarioData,
+    ScenarioConfig, ScenarioData,
 
     # Scenario management
     load_scenario_from_config,
     
-    # Simulation management
-    initialize_simulation, set_ambulances_data!, initialize_calls,
-    create_simulation_instances
+    # Simulation instances management
+    create_simulation_instance, create_simulation_instance_with_strategy, 
+    initialize_strategy_with_scenario,
+    
+    # Custom simulation with move-up strategies
+    simulate_custom!,
+    
+    # Move-up strategy interface
+    AbstractMoveUpStrategy, should_trigger_on_dispatch, should_trigger_on_free, decide_moveup,
+    initialize_strategy!, copy_strategy, update_parameters!, validate_moveup_decision
 
 end # module JEMSSWrapper

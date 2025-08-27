@@ -2,375 +2,358 @@
 Simulation
 ==========
 
-Unified simulation management including initialization and replication.
-Consolidates functionality from initialization.jl and replication.jl.
+Custom simulation module with extensible move-up strategies.
 """
 module Simulation
 
 using JEMSS
-using ..Types: SimulationConfig, ScenarioData
+using Printf
+using ..MoveUp: AbstractMoveUpStrategy, should_trigger_on_dispatch, should_trigger_on_free, decide_moveup
 
-export initialize_simulation, set_ambulances_data!, initialize_calls, create_simulation_instances
+export simulate_custom!
 
 # =============================================================================
-# SIMULATION INITIALIZATION FUNCTIONS
+# MAIN SIMULATION FUNCTIONS
 # =============================================================================
 
 """
-    initialize_simulation(config::SimulationConfig)
+    simulate_custom!(sim::JEMSS.Simulation;
+                    moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                    time::Real = Inf, 
+                    duration::Real = Inf, 
+                    numEvents::Real = Inf,
+                    doPrint::Bool = false, 
+                    printingInterval::Real = 1.0)
 
-Initialize a complete simulation from configuration.
+Custom simulation function with extensible move-up strategies.
+When moveup_strategy is nothing, behaves identically to original JEMSS.simulate!
 """
-function initialize_simulation(config::SimulationConfig)    
-    # Create basic simulation
-    sim = initialize_basic_simulation(config)
-    
-    # Setup network
-    setup_network!(sim, config)
-    
-    # Setup travel system
-    setup_travel_system!(sim)
-    
-    # Setup routing
-    setup_location_routing!(sim)
-    
-    # Setup statistics
-    setup_simulation_statistics!(sim, config.stats_file)
-    
-    sim.initialised = true
-    
-    return sim
+function simulate_custom!(sim::JEMSS.Simulation;
+                         moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                         time::Real = Inf, 
+                         duration::Real = Inf, 
+                         numEvents::Real = Inf,
+                         doPrint::Bool = false, 
+                         printingInterval::Real = 1.0)
+
+    @assert(time == Inf || duration == Inf, "can only set one of: time, duration")
+    @assert(time >= sim.time)
+    @assert(duration >= 0)
+    @assert(numEvents >= 0)
+    @assert(printingInterval >= 1e-2, "printing too often can slow the simulation")
+
+    duration != Inf && (time = sim.time + duration) # set end time based on duration
+
+    # for printing progress
+    startTime = Base.time()
+    doPrint || (printingInterval = Inf)
+    nextPrintTime = startTime + printingInterval
+    eventCount = 0
+    printProgress() = doPrint && print(@sprintf("\rsim time: %-9.2f sim duration: %-9.2f events simulated: %-9d real duration: %.2f seconds", sim.time, sim.time - sim.startTime, eventCount, Base.time() - startTime))
+
+    # simulate
+    stats = sim.stats # shorthand
+    while !sim.complete && sim.eventList[end].time <= time && eventCount < numEvents
+        if stats.doCapture && stats.nextCaptureTime <= sim.eventList[end].time
+            JEMSS.captureSimStats!(sim, stats.nextCaptureTime)
+        end
+
+        simulate_next_event_custom!(sim, moveup_strategy)
+        eventCount += 1
+
+        if doPrint && Base.time() >= nextPrintTime
+            printProgress()
+            nextPrintTime += printingInterval
+        end
+    end
+
+    printProgress()
+    doPrint && println()
+
+    if stats.doCapture && sim.complete
+        JEMSS.captureSimStats!(sim, sim.endTime)
+        JEMSS.populateSimStats!(sim)
+    end
+
+    return sim.complete
+end
+
+# =============================================================================
+# INTERNAL SIMULATION FUNCTIONS
+# =============================================================================
+
+"""
+    simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy)
+
+Custom version of simulateNextEvent! with move-up strategy support.
+"""
+function simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    # get next event, update event index and sim time
+    event = JEMSS.getNextEvent!(sim.eventList)
+    if event.form == JEMSS.nullEvent
+        error()
+    end
+    sim.used = true
+    sim.eventIndex += 1
+    event.index = sim.eventIndex
+    sim.time = event.time
+
+    if sim.resim.use
+        JEMSS.resimCheckCurrentEvent!(sim, event)
+    elseif sim.writeOutput
+        JEMSS.writeEventToFile!(sim, event)
+    end
+
+    simulate_event_custom!(sim, event, moveup_strategy)
+
+    if length(sim.eventList) == 0
+        # simulation complete
+        @assert(sim.endTime == JEMSS.nullTime)
+        @assert(sim.complete == false)
+        sim.endTime = sim.time
+        sim.complete = true
+        for amb in sim.ambulances
+            JEMSS.setAmbStatus!(sim, amb, amb.status, sim.time) # to account for duration spent with final status
+        end
+    end
 end
 
 """
-    set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
+    simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy)
 
-Set the ambulances data in a simulation object.
+Custom version of simulateEvent! with move-up strategy support.
 """
-function set_ambulances_data!(sim::JEMSS.Simulation, ambulances_path::String)
-    ambulances = JEMSS.readAmbsFile(ambulances_path)
-    sim.ambulances = ambulances
-    sim.numAmbs = length(ambulances)
-end
+function simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    @assert(sim.time == event.time)
 
-"""
-    initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
-
-Initialize calls from CSV or XML file and split into sets.
-"""
-function initialize_calls(sim::JEMSS.Simulation, filepath::String, num_sets::Int = 1)
-    # Load the calls
-    if endswith(filepath, ".csv")
-        calls, _ = JEMSS.readCallsFile(filepath)
-    elseif endswith(filepath, ".xml")
-        callGenConfig = JEMSS.readGenConfig(filepath)
-        calls = JEMSS.makeCalls(callGenConfig)
+    # Find event simulation function to match event form.
+    form = event.form # shorthand
+    if form == JEMSS.ambGoesToSleep
+        JEMSS.simulateEventAmbGoesToSleep!(sim, event)
+    elseif form == JEMSS.ambWakesUp
+        JEMSS.simulateEventAmbWakesUp!(sim, event)
+    elseif form == JEMSS.callArrives
+        JEMSS.simulateEventCallArrives!(sim, event)
+    elseif form == JEMSS.considerDispatch
+        JEMSS.simulateEventConsiderDispatch!(sim, event)
+    elseif form == JEMSS.ambDispatched
+        simulate_event_amb_dispatched_custom!(sim, event, moveup_strategy)
+    elseif form == JEMSS.ambMobilised
+        JEMSS.simulateEventAmbMobilised!(sim, event)
+    elseif form == JEMSS.ambReachesCall
+        JEMSS.simulateEventAmbReachesCall!(sim, event)
+    elseif form == JEMSS.ambGoesToHospital
+        JEMSS.simulateEventAmbGoesToHospital!(sim, event)
+    elseif form == JEMSS.ambReachesHospital
+        JEMSS.simulateEventAmbReachesHospital!(sim, event)
+    elseif form == JEMSS.ambBecomesFree
+        simulate_event_amb_becomes_free_custom!(sim, event, moveup_strategy)
+    elseif form == JEMSS.ambReturnsToStation
+        JEMSS.simulateEventAmbReturnsToStation!(sim, event)
+    elseif form == JEMSS.ambReachesStation
+        JEMSS.simulateEventAmbReachesStation!(sim, event)
+    elseif form == JEMSS.considerMoveUp
+        simulate_event_consider_moveup_custom!(sim, event, moveup_strategy)
+    elseif form == JEMSS.ambMoveUpToStation
+        JEMSS.simulateEventAmbMoveUpToStation!(sim, event)
     else
-        throw(ArgumentError("Unsupported file format. Use .csv or .xml"))
+        error("Unknown event: ", form, ".")
     end
-
-    # Find nearest nodes
-    for call in calls
-        (call.nearestNodeIndex, call.nearestNodeDist) = JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
-    end
-
-    return split_vector(calls, num_sets)
 end
 
 # =============================================================================
-# SIMULATION REPLICATION FUNCTIONS
+# CUSTOM EVENT HANDLERS
 # =============================================================================
 
 """
-    create_simulation_instances(scenario::ScenarioData)
+    simulate_event_amb_dispatched_custom!(sim, event, moveup_strategy)
 
-Create simulation instances for each call set in the scenario.
+Custom handler for ambulance dispatch events that may trigger move-up consideration.
 """
-function create_simulation_instances(scenario::ScenarioData)
-    base_sim = scenario.base_simulation
-    call_sets = scenario.call_sets
-    
-    instances = Vector{JEMSS.Simulation}(undef, length(call_sets))
-    
-    for (i, calls) in enumerate(call_sets)
-        sim_copy = copy_base_simulation(base_sim)
-        add_calls!(sim_copy, calls)
-        instances[i] = sim_copy
+function simulate_event_amb_dispatched_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    # First, execute the original dispatch logic
+    @assert(event.form == JEMSS.ambDispatched)
+    ambulance = sim.ambulances[event.ambIndex]
+    status = ambulance.status # shorthand
+    @assert(JEMSS.isFree(status) || in(status, (JEMSS.ambMobilising, JEMSS.ambGoingToCall)))
+    call = sim.calls[event.callIndex]
+    @assert(in(call.status, (JEMSS.callScreening, JEMSS.callQueued, JEMSS.callWaitingForAmb))) # callWaitingForAmb if call bumped
+
+    ambulance.callIndex = call.index
+    ambulance.dispatchTime = sim.time
+    mobiliseAmbulance = sim.mobilisationDelay.use && in(ambulance.status, (JEMSS.ambIdleAtStation, JEMSS.ambMobilising))
+    if mobiliseAmbulance
+        JEMSS.setAmbStatus!(sim, ambulance, JEMSS.ambMobilising, sim.time)
+    else
+        JEMSS.setAmbStatus!(sim, ambulance, JEMSS.ambGoingToCall, sim.time)
+        JEMSS.changeRoute!(sim, ambulance.route, sim.responseTravelPriorities[call.priority], sim.time, call.location, call.nearestNodeIndex)
     end
 
-    return instances
-end
+    JEMSS.setCallStatus!(call, JEMSS.callWaitingForAmb, sim.time)
+    call.ambIndex = event.ambIndex
+    ambLoc = JEMSS.getRouteCurrentLocation!(sim.net, ambulance.route, sim.time)
+    copy!(call.ambDispatchLoc, ambLoc)
+    call.ambStatusBeforeDispatch = ambulance.prevStatus
 
-# =============================================================================
-# INTERNAL/HELPER FUNCTIONS
-# =============================================================================
-
-"""
-    initialize_basic_simulation(config::SimulationConfig)
-
-Initialize basic simulation structures.
-"""
-function initialize_basic_simulation(config::SimulationConfig)
-    sim = JEMSS.Simulation()
-    
-    # Load basic data
-    sim.hospitals = JEMSS.readHospitalsFile(config.hospitals_file)
-    sim.stations = JEMSS.readStationsFile(config.stations_file)
-
-    # Setup basic properties
-    sim.time = 0.0
-    sim.startTime = 0.0
-    sim.numHospitals = length(sim.hospitals)
-    sim.numStations = length(sim.stations)
-    sim.eventList = Vector{JEMSS.Event}()
-    
-    # Setup map and priorities
-    sim.map = JEMSS.readMapFile(config.map_file)
-    (sim.targetResponseDurations, sim.responseTravelPriorities) = JEMSS.readPrioritiesFile(config.priorities_file)
-    sim.travel = JEMSS.readTravelFile(config.travel_file)
-    
-    # Setup basic behavior
-    sim.addCallToQueue! = JEMSS.addCallToQueueSortPriorityThenTime!
-    sim.findAmbToDispatch! = JEMSS.findNearestDispatchableAmb!
-    sim.moveUpData.useMoveUp = false
-    sim.moveUpData.moveUpModule = JEMSS.nullMoveUpModule
-
-    return sim
-end
-
-"""
-    setup_network!(sim, config::SimulationConfig)
-
-Setup the road network and graph.
-"""
-function setup_network!(sim, config::SimulationConfig)
-    sim.net = JEMSS.Network()
-    
-    # Setup graph
-    sim.net.fGraph.nodes = JEMSS.readNodesFile(config.nodes_file)
-    (sim.net.fGraph.arcs, arcTravelTimes) = JEMSS.readArcsFile(config.arcs_file)
-    rNetTravelsLoaded = load_r_net_travels(config.r_net_travel_file)
-    
-    nx, ny = calculate_grid_dimensions(sim.net.fGraph.nodes, sim.map)
-    sim.grid = JEMSS.Grid(sim.map, nx, ny)
-    JEMSS.gridPlaceNodes!(sim.map, sim.grid, sim.net.fGraph.nodes)
-
-    JEMSS.initGraph!(sim.net.fGraph)
-    
-    # Set arc distances if needed
-    if any(arc -> isnan(arc.distance), sim.net.fGraph.arcs)
-        JEMSS.setArcDistances!(sim.net.fGraph, sim.map)
+    # stats
+    if ambulance.prevStatus == JEMSS.ambIdleAtStation
+        JEMSS.updateStationStats!(sim.stations[ambulance.stationIndex]; numIdleAmbsChange=-1, time=sim.time)
     end
-    
-    JEMSS.checkGraph(sim.net.fGraph, sim.map)
-    JEMSS.initFNetTravels!(sim.net, arcTravelTimes)
-    JEMSS.createRGraphFromFGraph!(sim.net)
-    JEMSS.checkGraph(sim.net.rGraph, sim.map)
-    JEMSS.createRNetTravelsFromFNetTravels!(sim.net; rNetTravelsLoaded=rNetTravelsLoaded)
+    if sim.stats.recordDispatchStartLocCounts
+        ambulance.dispatchStartLocCounts[ambLoc] = get(ambulance.dispatchStartLocCounts, ambLoc, 0) + 1
+    end
+
+    if mobiliseAmbulance
+        mobilisationDelay = 0.0 # init
+        if ambulance.prevStatus == JEMSS.ambMobilising
+            # ambulance.mobilisation time unchanged
+            @assert(ambulance.mobilisationTime != JEMSS.nullTime)
+        else
+            @assert(ambulance.prevStatus == JEMSS.ambIdleAtStation)
+            ambulance.mobilisationTime = sim.time + rand(sim.mobilisationDelay.distrRng)
+        end
+        @assert(ambulance.mobilisationTime >= sim.time)
+        JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambMobilised, time=ambulance.mobilisationTime, ambulance=ambulance, call=call)
+    else
+        JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambReachesCall, time=ambulance.route.endTime, ambulance=ambulance, call=call)
+    end
+
+    # Custom move-up consideration logic
+    should_consider_moveup = should_trigger_moveup_on_dispatch(sim, moveup_strategy)
+    if should_consider_moveup
+        JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.considerMoveUp, time=sim.time, ambulance=ambulance, addEventToAmb=false)
+    end
 end
 
 """
-    setup_travel_system!(sim)
+    simulate_event_amb_becomes_free_custom!(sim, event, moveup_strategy)
 
-Setup travel modes and link to network.
+Custom handler for ambulance becomes free events that may trigger move-up consideration.
 """
-function setup_travel_system!(sim)
-    # Validate travel configuration
-    @assert(sim.travel.setsStartTimes[1] <= sim.startTime)
-    @assert(length(sim.net.fNetTravels) == sim.travel.numModes)
-    
-    # Link travel modes to network
-    for travelMode in sim.travel.modes
-        travelMode.fNetTravel = sim.net.fNetTravels[travelMode.index]
-        travelMode.rNetTravel = sim.net.rNetTravels[travelMode.index]
-    end
-       
-    for hospital in sim.hospitals
-        hospital.nearestNodeIndex, hospital.nearestNodeDist = 
-            JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, hospital.location)
-    end
-    
-    for station in sim.stations
-        station.nearestNodeIndex, station.nearestNodeDist = 
-            JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, station.location)
-    end
-    
-    # Setup common nodes
-    hospitalNodes = [h.nearestNodeIndex for h in sim.hospitals]
-    stationNodes = [s.nearestNodeIndex for s in sim.stations]
-    commonFNodes = sort(unique(vcat(hospitalNodes, stationNodes)))
-    JEMSS.setCommonFNodes!(sim.net, commonFNodes)
-end
+function simulate_event_amb_becomes_free_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    # First, execute the original becomes free logic
+    @assert(event.form == JEMSS.ambBecomesFree)
+    ambulance = sim.ambulances[event.ambIndex]
+    @assert(in(ambulance.status, (JEMSS.ambAtCall, JEMSS.ambAtHospital)))
+    call = sim.calls[event.callIndex]
+    @assert(in(call.status, (JEMSS.callOnSceneTreatment, JEMSS.callAtHospital)))
 
-"""
-    setup_location_routing!(sim)
+    # remove call, processing is finished
+    delete!(sim.currentCalls, call)
+    JEMSS.setCallStatus!(call, JEMSS.callProcessed, sim.time)
 
-Setup routing to hospitals.
-"""
-function setup_location_routing!(sim)
-    numFNodes = length(sim.net.fGraph.nodes)
-    
-    for fNetTravel in sim.net.fNetTravels
-        fNetTravel.fNodeNearestHospitalIndex = Vector{Int}(undef, numFNodes)
-        travelMode = sim.travel.modes[fNetTravel.modeIndex]
-        
-        for node in sim.net.fGraph.nodes
-            nearestHospitalIndex = find_nearest_hospital_to_node(node, sim.hospitals, sim.net, travelMode)
-            fNetTravel.fNodeNearestHospitalIndex[node.index] = nearestHospitalIndex
+    JEMSS.setAmbStatus!(sim, ambulance, JEMSS.ambFreeAfterCall, sim.time)
+    ambulance.callIndex = JEMSS.nullIndex
+
+    # if queued call exists, respond
+    # otherwise return to station
+    if length(sim.queuedCallList) > 0
+        call = JEMSS.getNextCall!(sim.queuedCallList)
+        @assert(call !== nothing)
+
+        # dispatch ambulance
+        JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambDispatched, time=sim.time, ambulance=ambulance, call=call)
+    else
+        # return to station (can be cancelled by move up)
+        JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambReturnsToStation, time=sim.time, ambulance=ambulance, station=sim.stations[ambulance.stationIndex])
+
+        # Custom move-up consideration logic
+        should_consider_moveup = should_trigger_moveup_on_free(sim, moveup_strategy)
+        if should_consider_moveup
+            JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.considerMoveUp, time=sim.time, ambulance=ambulance, addEventToAmb=false)
         end
     end
 end
 
 """
-    setup_simulation_statistics!(sim, stats_file::String)
+    simulate_event_consider_moveup_custom!(sim, event, moveup_strategy)
 
-Setup simulation statistics.
+Custom handler for move-up consideration events.
 """
-function setup_simulation_statistics!(sim, stats_file::String)
-    stats = sim.stats
-    stats.doCapture = true
-    
-    config_dict = JEMSS.readStatsControlFile(stats_file)
-    
-    # Apply configuration
-    stat_fields = (:periodDurationsIter, :warmUpDuration, :recordResponseDurationHist, 
-                   :responseDurationHistBinWidth)
-    
-    for field_name in stat_fields
-        field_key = string(field_name)
-        if haskey(config_dict, field_key)
-            setfield!(stats, field_name, config_dict[field_key])
+function simulate_event_consider_moveup_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    @assert(event.form == JEMSS.considerMoveUp)
+    ambulance = sim.ambulances[event.ambIndex] # ambulance that triggered consideration of move up
+    @assert(event.callIndex == JEMSS.nullIndex)
+
+    if moveup_strategy === nothing
+        # No custom strategy - use original JEMSS logic (if enabled)
+        if sim.moveUpData.useMoveUp
+            # Call original JEMSS move-up logic
+            JEMSS.simulateEventConsiderMoveUp!(sim, event)
         end
+        # If move-up is disabled, do nothing (event is consumed)
+    else
+        # Use custom move-up strategy
+        execute_moveup_strategy!(sim, event, ambulance, moveup_strategy)
     end
-    
-    warmup_duration = stats.warmUpDuration > 0 ? stats.warmUpDuration : first(stats.periodDurationsIter)
-    stats.nextCaptureTime = sim.startTime + warmup_duration
-end
-
-"""
-    copy_base_simulation(sim::JEMSS.Simulation)
-
-Create a deep copy of a base simulation for replication.
-"""
-function copy_base_simulation(sim::JEMSS.Simulation)
-    sim_copy = JEMSS.Simulation()
-    sim_copy.time = 0.0
-    sim_copy.startTime = 0.0
-    sim_copy.numAmbs = sim.numAmbs
-    sim_copy.numHospitals = sim.numHospitals
-    sim_copy.numStations = sim.numStations
-    sim_copy.ambulances = deepcopy(sim.ambulances)
-    sim_copy.hospitals = deepcopy(sim.hospitals)
-    sim_copy.stations = deepcopy(sim.stations)
-    sim_copy.net = sim.net # shallow copy, this is the heavy part of the object
-    sim_copy.map = deepcopy(sim.map)
-    sim_copy.targetResponseDurations = deepcopy(sim.targetResponseDurations)
-    sim_copy.responseTravelPriorities = deepcopy(sim.responseTravelPriorities)
-    sim_copy.travel = sim.travel # shallow copy, this is the heavy part of the object
-    sim_copy.grid = deepcopy(sim.grid)
-    
-    # Reset station statistics
-    for station in sim_copy.stations
-        station.numIdleAmbsTotalDuration = JEMSS.OffsetVector(zeros(JEMSS.Float, sim.numAmbs + 1), 0:sim.numAmbs)
-        station.currentNumIdleAmbsSetTime = sim.startTime
-    end
-    
-    sim_copy.addCallToQueue! = sim.addCallToQueue!
-    sim_copy.findAmbToDispatch! = sim.findAmbToDispatch!
-
-    sim_copy.eventList = Vector{JEMSS.Event}()
-    
-    # Initialize ambulances
-    for ambulance in sim_copy.ambulances
-        JEMSS.initAmbulance!(sim_copy, ambulance)
-    end
-
-    sim_copy.initialised = sim.initialised
-    return sim_copy
-end
-
-"""
-    add_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
-
-Add a vector of calls to the simulation.
-"""
-function add_calls!(sim::JEMSS.Simulation, calls::Vector{JEMSS.Call})
-    sim.calls = deepcopy(calls)
-    sim.numCalls = length(calls)
-    JEMSS.addEvent!(sim.eventList, sim.calls[1])
 end
 
 # =============================================================================
-# UTILITY FUNCTIONS
+# MOVE-UP STRATEGY FUNCTIONS
 # =============================================================================
 
 """
-    calculate_grid_dimensions(nodes, map)
+    should_trigger_moveup_on_dispatch(sim, moveup_strategy)
 
-Calculate optimal grid dimensions for node placement.
+Determine if move-up should be considered when an ambulance is dispatched.
 """
-function calculate_grid_dimensions(nodes, map)
-    n = length(nodes)
-    xDist = map.xRange * map.xScale
-    yDist = map.yRange * map.yScale
-    nx = Int(ceil(sqrt(n * xDist / yDist)))
-    ny = Int(ceil(sqrt(n * yDist / xDist)))
-    return nx, ny
+function should_trigger_moveup_on_dispatch(sim::JEMSS.Simulation, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    if moveup_strategy === nothing
+        # Use original JEMSS logic
+        return sim.moveUpData.useMoveUp && 
+               in(sim.moveUpData.moveUpModule, (JEMSS.compTableModule, JEMSS.ddsmModule, JEMSS.multiCompTableModule, 
+                                               JEMSS.zhangIpModule, JEMSS.temp0Module, JEMSS.temp1Module, JEMSS.temp2Module))
+    else
+        # Custom strategy determines triggering
+        return should_trigger_on_dispatch(moveup_strategy, sim)
+    end
 end
 
 """
-    load_r_net_travels(r_net_travel_file::String)
+    should_trigger_moveup_on_free(sim, moveup_strategy)
 
-Load R-network travels if file exists, otherwise return empty array.
+Determine if move-up should be considered when an ambulance becomes free.
 """
-function load_r_net_travels(r_net_travel_file::String)
-    return isempty(r_net_travel_file) ? JEMSS.NetTravel[] : JEMSS.readRNetTravelsFile(r_net_travel_file)
+function should_trigger_moveup_on_free(sim::JEMSS.Simulation, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+    if moveup_strategy === nothing
+        # Use original JEMSS logic
+        return sim.moveUpData.useMoveUp && 
+               in(sim.moveUpData.moveUpModule, (JEMSS.compTableModule, JEMSS.dmexclpModule, JEMSS.multiCompTableModule, 
+                                               JEMSS.priorityListModule, JEMSS.zhangIpModule, JEMSS.temp0Module, 
+                                               JEMSS.temp1Module, JEMSS.temp2Module))
+    else
+        # Custom strategy determines triggering
+        return should_trigger_on_free(moveup_strategy, sim)
+    end
 end
 
 """
-    find_nearest_hospital_to_node(node, hospitals, net, travelMode)
+    execute_moveup_strategy!(sim, event, ambulance, strategy)
 
-Find the nearest hospital to a given node using travel time.
+Execute the custom move-up strategy.
 """
-function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
-    minTime = Inf
-    nearestHospitalIndex = JEMSS.nullIndex
-    
-    for hospital in hospitals
-        travelTime = JEMSS.shortestPathTravelTime(net, travelMode.index, 
-                                                 node.index, hospital.nearestNodeIndex)
-        travelTime += JEMSS.offRoadTravelTime(travelMode, hospital.nearestNodeDist)
-        
-        if travelTime < minTime
-            minTime = travelTime
-            nearestHospitalIndex = hospital.index
+function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, ambulance::JEMSS.Ambulance, strategy::AbstractMoveUpStrategy)
+    # Get move-up decisions from strategy
+    (movableAmbs, ambStations) = decide_moveup(strategy, sim, ambulance)
+
+    # Execute the moves (same as original JEMSS logic)
+    for i in eachindex(movableAmbs)
+        amb = movableAmbs[i]
+        station = ambStations[i]
+
+        # move up ambulance if ambulance station has changed
+        if amb.stationIndex != station.index
+
+            if JEMSS.isGoingToStation(amb.status) # amb.event.form == ambReachesStation
+                # delete station arrival event for this ambulance
+                JEMSS.deleteEvent!(sim.eventList, amb.event)
+            elseif amb.status == JEMSS.ambFreeAfterCall && amb.event.form == JEMSS.ambReturnsToStation
+                JEMSS.deleteEvent!(sim.eventList, amb.event)
+            end
+
+            JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambMoveUpToStation, time=sim.time, ambulance=amb, station=station)
         end
     end
-    
-    return nearestHospitalIndex
-end
-
-"""
-    split_vector(vector::Vector, num_parts::Int)
-
-Split a vector into roughly equal parts.
-"""
-function split_vector(vector::Vector, num_parts::Int)
-    @assert num_parts > 0 "Number of parts must be positive"
-    
-    length_part = length(vector) ÷ num_parts
-    remainder = length(vector) % num_parts
-    
-    parts = Vector{Vector}(undef, num_parts)
-    start_index = 1
-    
-    for i in 1:num_parts
-        current_length = length_part + (i <= remainder ? 1 : 0)
-        parts[i] = vector[start_index:start_index+current_length-1]
-        start_index += current_length
-    end
-    
-    return parts
 end
 
 end # module Simulation

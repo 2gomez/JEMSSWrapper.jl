@@ -1,4 +1,3 @@
-# src/scenario.jl
 """
 Scenario
 ========
@@ -12,8 +11,8 @@ using Dates
 using TOML
 using JEMSS
 using ..PathUtils: PROJECT_DIR, SCENARIOS_DIR
-using ..Types: SimulationConfig, ScenarioData
-using ..Simulation: initialize_simulation, set_ambulances_data!, initialize_calls
+using ..Types: ScenarioConfig, ScenarioData
+using ..Initialization: initialize_simulation, initialize_ambulances, initialize_calls
 
 export load_scenario_from_config
 
@@ -22,7 +21,6 @@ export load_scenario_from_config
                              config_name::String,
                              ambulances_file::String,
                              calls_file::String;
-                             num_sets::Int = 1,
                              scenarios_base_dir::String = SCENARIOS_DIR)
 
 Load a scenario using a TOML configuration file.
@@ -31,7 +29,6 @@ function load_scenario_from_config(scenario_name::String,
                                   config_name::String,
                                   ambulances_file::String,
                                   calls_file::String;
-                                  num_sets::Int = 1,
                                   scenarios_base_dir::String = SCENARIOS_DIR)
     
     @info "Loading scenario from config: $scenario_name/configs/$config_name"
@@ -55,7 +52,7 @@ function load_scenario_from_config(scenario_name::String,
     isfile(calls_path) || throw(ArgumentError("Calls file not found: $calls_path"))
         
     # Load scenario
-    return load_scenario_internal(sim_config, ambulances_path, calls_path, num_sets)
+    return load_scenario_internal(sim_config, ambulances_path, calls_path)
 end
 
 """
@@ -81,7 +78,7 @@ end
 """
     create_config_from_toml(config_path::String)
 
-Create a SimulationConfig from loaded TOML configuration data.
+Create a ScenarioConfig from loaded TOML configuration data.
 """
 function create_config_from_toml(config_path::String)
     metadata, files = load_config_file(config_path)
@@ -101,7 +98,9 @@ function create_config_from_toml(config_path::String)
         "map" => "maps/base.csv",
         "priorities" => "misc/call priorities/base.csv",
         "travel" => "travel/base.csv",
-        "stats" => "calls/single/train/stats_control.csv"
+        "stats" => "calls/single/train/stats_control.csv",
+        "demand" => "",
+        "demand_coverage" => ""
     )
     
     # Helper function to get file path
@@ -110,7 +109,7 @@ function create_config_from_toml(config_path::String)
         isempty(filename) ? filename : joinpath(PROJECT_DIR, data_dir, filename)
     end
     
-    return SimulationConfig(
+    return ScenarioConfig(
         config_name,
         scenario_name,
         data_dir,
@@ -123,24 +122,25 @@ function create_config_from_toml(config_path::String)
         get_file_path("map"),
         get_file_path("priorities"),
         get_file_path("travel"),
-        get_file_path("stats")
+        get_file_path("stats"),
+        get_file_path("demand"),
+        get_file_path("demand_coverage")
     )
 end
 
 """
-    load_scenario_internal(sim_config, ambulances_path, calls_path, num_sets)
+    load_scenario_internal(sim_config, ambulances_path, calls_path)
 
-Internal function to load scenario from SimulationConfig.
+Internal function to load scenario from ScenarioConfig.
 """
-function load_scenario_internal(sim_config::SimulationConfig, 
+function load_scenario_internal(sim_config::ScenarioConfig, 
                                ambulances_path::String, 
-                               calls_path::String, 
-                               num_sets::Int)
+                               calls_path::String)
 
     @info "Initializing simulation..."
     base_sim = initialize_simulation(sim_config)
-    set_ambulances_data!(base_sim, ambulances_path)
-    call_sets = initialize_calls(base_sim, calls_path, num_sets)
+    calls = initialize_calls(base_sim, calls_path)
+    ambulances = initialize_ambulances(ambulances_path)
     
     metadata = Dict{String, Any}(
         "loaded_at" => now(),
@@ -149,13 +149,12 @@ function load_scenario_internal(sim_config::SimulationConfig,
         "config_file" => sim_config.config_path,
         "data_dir" => sim_config.data_dir,
         "ambulance_path" => ambulances_path,
-        "calls_path" => calls_path,
-        "num_sets" => num_sets
+        "calls_path" => calls_path
     )
     
     @info "Scenario loaded successfully!"
     
-    return ScenarioData(base_sim, call_sets, metadata)
+    return ScenarioData(base_sim, calls, ambulances, metadata)
 end
 
 end # module Scenario

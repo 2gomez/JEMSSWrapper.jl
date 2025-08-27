@@ -9,14 +9,14 @@ module Types
 using Dates
 using JEMSS
 
-export SimulationConfig, ScenarioData
+export ScenarioConfig, ScenarioData
 
 """
-    struct SimulationConfig
+    struct ScenarioConfig
 
-Configuration structure containing all file paths needed for a simulation.
+Configuration structure containing all file paths needed for a simulation scenario.
 """
-struct SimulationConfig
+struct ScenarioConfig
     config_name::String
     scenario_name::String
     data_dir::String
@@ -32,6 +32,8 @@ struct SimulationConfig
     priorities_file::String
     travel_file::String
     stats_file::String
+    demand_file::String
+    demand_coverage_file::String
 end
 
 """
@@ -41,7 +43,8 @@ Container for loaded scenario with the base simulation object, call sets and met
 """
 struct ScenarioData
     base_simulation::JEMSS.Simulation
-    call_sets::Vector{Vector{JEMSS.Call}}
+    calls::Vector{JEMSS.Call}
+    ambulances::Vector{JEMSS.Ambulance}
     metadata::Dict{String, Any}
 end
 
