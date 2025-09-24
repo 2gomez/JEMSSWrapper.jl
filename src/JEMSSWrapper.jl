@@ -52,7 +52,7 @@ export
     
     # Simulation instances management
     create_simulation_instance, create_simulation_instance_with_strategy, 
-    initialize_strategy_with_scenario,
+    initialize_strategy_with_scenario, reset_simulation!
     
     # Custom simulation with move-up strategies
     simulate_custom!,

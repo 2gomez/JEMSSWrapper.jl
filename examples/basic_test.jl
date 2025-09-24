@@ -22,10 +22,6 @@ function main()
         # Test JEMSS functionality access through JEMSSWrapper
         println("✓ Successfully loaded JEMSSWrapper module")
         
-        # Get JEMSS info
-        jemss_info = JEMSSWrapper.get_jemss_info()
-        println("✓ JEMSS loaded from: $(dirname(jemss_info.path))")
-        
         # Run basic simulation test
         println("\n=== Running Basic Simulation Test ===")
         
@@ -35,7 +31,7 @@ function main()
             simulate! = JEMSSWrapper.jemss.simulate!
             
             # Use example config from JEMSS
-            config_path = joinpath(jemss_info.path, "example", "input", "sim_config.xml")
+            config_path = joinpath(JEMSS_DIR, "example", "input", "sim_config.xml")
             
             if !isfile(config_path)
                 println("⚠ Example config not found at: $config_path")

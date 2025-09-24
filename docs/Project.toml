@@ -1,0 +1,8 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+JEMSSWrapper = "3ffb80e5-d622-48f0-97e0-c485a3b5e49b"
+LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
+
+[compat]
+Documenter = "1"
+julia = "1.8"

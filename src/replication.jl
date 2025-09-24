@@ -12,7 +12,7 @@ using ..Types: ScenarioData
 using ..MoveUp: AbstractMoveUpStrategy, copy_strategy, update_parameters!
 
 export create_simulation_instance, create_simulation_instance_with_strategy, 
-       initialize_strategy_with_scenario
+       initialize_strategy_with_scenario, reset_simulation!
 
 """
     create_simulation_instance(scenario::ScenarioData)
@@ -147,6 +147,43 @@ function copy_base_simulation(sim::JEMSS.Simulation)
     
     sim_copy.initialised = sim.initialised
     return sim_copy
+end
+
+"""
+    reset_simulation!(sim::JEMSS.Simulation, scenario::ScenarioData) 
+
+Reset the simulation instance with the initial calls and ambulance positions.
+"""
+function reset_simulation!(sim::JEMSS.Simulation, scenario::ScenarioData)
+    # Reset solo los campos que definitivamente necesitan ser reseteados
+    sim.time = 0.0
+    sim.startTime = 0.0
+    sim.endTime = nullTime
+
+    sim.hospitals = deepcopy(scenario.base_simulation.hospitals)
+    sim.stations = deepcopy(scenario.base_simulation.stations)
+    
+    # Limpiar entidades dinámicas
+    empty!(sim.ambulances)
+    empty!(sim.calls)
+    empty!(sim.eventList)
+    empty!(sim.queuedCallList)
+    empty!(sim.currentCalls)
+    empty!(sim.previousCalls)
+    
+    # Reset contadores y flags críticos
+    sim.numAmbs = 0
+    sim.numCalls = 0
+    sim.eventIndex = 0
+    sim.used = false
+    sim.complete = false
+    
+    # Reset estadísticas
+    sim.stats = JEMSS.SimStats()
+    
+    # Añadir nuevos datos
+    add_calls!(sim, scenario.calls)
+    add_ambulances!(sim, scenario.ambulances)
 end
 
 """
