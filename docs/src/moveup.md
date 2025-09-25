@@ -10,6 +10,7 @@ The MoveUp module provides an abstract interface for implementing move-up strate
 
 All move-up strategies must inherit from `AbstractMoveUpStrategy` and implement the required interface methods for triggering and decision-making.
 
+
 ## Abstract Types
 
 ```@docs
@@ -33,6 +34,7 @@ should_trigger_on_free
 decide_moveup
 ```
 
+<!--
 ## Strategy Lifecycle Methods
 
 Optional methods for strategy management and optimization:
@@ -42,6 +44,7 @@ initialize_strategy!
 copy_strategy
 update_parameters!
 ```
+-->
 
 ## Utility Functions
 
@@ -83,13 +86,6 @@ function decide_moveup(strategy::MyMoveUpStrategy, sim::JEMSS.Simulation,
     target_stations = find_optimal_stations(sim, movable_ambulances)
     
     return (movable_ambulances, target_stations)
-end
-
-function initialize_strategy!(strategy::MyMoveUpStrategy, sim::JEMSS.Simulation)
-    # Precompute expensive data structures
-    strategy.precomputed_data["distance_matrix"] = compute_distance_matrix(sim)
-    strategy.precomputed_data["coverage_zones"] = compute_coverage_zones(sim)
-    return nothing
 end
 ```
 

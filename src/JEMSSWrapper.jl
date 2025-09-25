@@ -45,20 +45,18 @@ export
     PROJECT_DIR, JEMSS_DIR, SCENARIOS_DIR,
     
     # Types 
-    ScenarioConfig, ScenarioData,
+    ScenarioData,
 
     # Scenario management
     load_scenario_from_config,
     
     # Simulation instances management
-    create_simulation_instance, create_simulation_instance_with_strategy, 
-    initialize_strategy_with_scenario, reset_simulation!
+    create_simulation_instance, 
     
     # Custom simulation with move-up strategies
     simulate_custom!,
     
     # Move-up strategy interface
-    AbstractMoveUpStrategy, should_trigger_on_dispatch, should_trigger_on_free, decide_moveup,
-    initialize_strategy!, copy_strategy, update_parameters!, validate_moveup_decision
+    AbstractMoveUpStrategy, validate_moveup_decision
 
 end # module JEMSSWrapper
