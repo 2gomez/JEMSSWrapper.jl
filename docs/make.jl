@@ -19,7 +19,8 @@ makedocs(
             "Instalación" => "installation.md",
             "Guía de Inicio Rápido" => "quickstart.md",
             "Comparación JEMSS y JEMSSWrapper" => "jemss_vs_wrapper.md",
-            "Clase `AbstractMoveUpStrategy`" => "moveup.md"
+            "Módulo MoveUp" => "moveup.md",
+            "Módulo Replication" => "replication.md"
             #"Simulaciones" => "simulations.md",
             #"Escenarios" => "scenarios.md"
         ],

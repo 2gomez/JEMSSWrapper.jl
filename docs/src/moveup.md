@@ -14,7 +14,7 @@ All move-up strategies must inherit from `AbstractMoveUpStrategy` and implement 
 ## Abstract Types
 
 ```@docs
-AbstractMoveUpStrategy
+MoveUp.AbstractMoveUpStrategy
 ```
 
 ## Core Interface Methods
@@ -24,34 +24,22 @@ These methods must be implemented by all concrete move-up strategies:
 ### Triggering Methods
 
 ```@docs
-should_trigger_on_dispatch
-should_trigger_on_free
+MoveUp.should_trigger_on_dispatch
+MoveUp.should_trigger_on_free
 ```
 
 ### Decision Method
 
 ```@docs
-decide_moveup
+MoveUp.decide_moveup
 ```
-
-<!--
-## Strategy Lifecycle Methods
-
-Optional methods for strategy management and optimization:
-
-```@docs
-initialize_strategy!
-copy_strategy
-update_parameters!
-```
--->
 
 ## Utility Functions
 
 Helper functions for validating move-up decisions:
 
 ```@docs
-validate_moveup_decision
+MoveUp.validate_moveup_decision
 ```
 
 ## Implementation Example

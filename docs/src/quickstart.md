@@ -16,25 +16,16 @@ scenario = load_scenario_from_config(
 )
 
 # Define strategy
-base_strategy = BaseANNStrategy(...)
-ann_weights = Vector(...)
+my_strategy = BaseANNStrategy(...)
 
-# Create simulation instances
-sim_without_moveup = create_simulation_instance(scenario)
-sim_with_moveup, new_strategy = create_simulation_instance_with_strategy(
-    scenario=scenario,
-    base_strategy=base_strategy,
-    new_params=ann_weights
-)
-
-# Use the JEMSS original simulate! function
-jemss.simulate!(sim_without_moveup)
+# Create simulation instance
+sim_instance = create_simulation_instance(scenario)
 
 # Use the JEMSSWrapper new simulate_custom! function with strategy
-simulate_custom!(sim_with_moveup, new_strategy)
+simulate_custom!(sim_instance, my_strategy)
 
-println(jemss.getAvgCallRespondeDuration(sim_without_moveup))
-println(jemss.getAvgCallRespondeDuration(sim_with_moveup))
+# Print average responde time
+println(jemss.getAvgCallRespondeDuration(sim_instance))
 ```
 
 ## Otros ejemplos
