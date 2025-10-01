@@ -9,7 +9,7 @@ module JEMSSWrapper
 
 using JEMSS
 
-@info "✅ Successfully loaded JEMSS from local fork"
+@info "Successfully loaded JEMSS from local fork"
 
 # Make JEMSS accessible through JEMSSWrapper
 const jemss = JEMSS
@@ -41,12 +41,6 @@ export
     # JEMSS access
     jemss,
     
-    # Path utilities
-    PROJECT_DIR, JEMSS_DIR, SCENARIOS_DIR,
-    
-    # Types 
-    ScenarioData,
-
     # Scenario management
     load_scenario_from_config,
     
@@ -57,6 +51,6 @@ export
     simulate_custom!,
     
     # Move-up strategy interface
-    AbstractMoveUpStrategy, validate_moveup_decision
+    AbstractMoveUpStrategy 
 
 end # module JEMSSWrapper

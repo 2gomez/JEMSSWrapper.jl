@@ -9,8 +9,6 @@ module MoveUp
 
 using JEMSS
 
-#export AbstractMoveUpStrategy, should_trigger_on_dispatch, should_trigger_on_free, decide_moveup,
-#       initialize_strategy!, copy_strategy, update_parameters!, validate_moveup_decision
 export AbstractMoveUpStrategy, validate_moveup_decision
 
 # =============================================================================
@@ -124,67 +122,6 @@ function decide_moveup(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation, 
     error("decide_moveup not implemented for $(typeof(strategy)). " *
           "All AbstractMoveUpStrategy subtypes must implement this method.")
 end
-
-# =============================================================================
-# STRATEGY LIFECYCLE METHODS
-# =============================================================================
-
-# """
-#     initialize_strategy!(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation) -> Nothing
-# 
-# Initialize the strategy with simulation-specific precomputations.
-# 
-# This method is called once before the simulation starts to allow strategies to perform
-# expensive precomputations that can be reused throughout the simulatio.
-# 
-# # Arguments
-# - `strategy::AbstractMoveUpStrategy`: The move-up strategy instance (modified in-place)
-# - `sim::JEMSS.Simulation`: The simulation in its initial state
-# """
-# function initialize_strategy!(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation)
-#     # Default implementation: do nothing
-#     return nothing
-# end
-# # 
-# """
-#     copy_strategy(strategy::AbstractMoveUpStrategy) -> AbstractMoveUpStrategy
-# 
-# Create a deep copy of the strategy, preserving all initialization state.
-# 
-# This method is used for strategy replication when running multiple simulations
-# with the same base strategy but different parameters. The copied strategy should
-# preserve all expensive precomputations from initialization while allowing parameter
-# modifications.
-# 
-# # Arguments
-# - `strategy::AbstractMoveUpStrategy`: The strategy to copy
-# 
-# # Returns
-# - `AbstractMoveUpStrategy`: A deep copy of the strategy with preserved initialization state
-# """
-# function copy_strategy(strategy::AbstractMoveUpStrategy)
-#     error("copy_strategy not implemented for $(typeof(strategy)). " *
-#           "Strategies that support replication must implement this method.")
-# end
-# 
-# """
-#     update_parameters!(strategy::AbstractMoveUpStrategy, params::Dict{String, Any}) -> Nothing
-# 
-# Update strategy parameters, performing selective re-precomputation as needed.
-# 
-# This method allows modifying strategy parameters after initialization. Depending on which
-# parameters are changed, the strategy may need to re-precompute some data while preserving
-# other expensive computations. Used for parameter sweeps and experiments where only specific
-# parameters change between runs.
-# 
-# # Arguments
-# - `strategy::AbstractMoveUpStrategy`: The strategy to update (modified in-place)
-# - `params::Dict{String, Any}`: Dictionary of parameter names and their new values
-# """
-# function update_parameters!(strategy::AbstractMoveUpStrategy, params::Dict{String, Any})
-#     error("update_parameters! not implemented for $(typeof(strategy)). " *
-#           "Strategies that support parameter updates must implement this method.")
-# end
 
 # =============================================================================
 # UTILITY FUNCTIONS
