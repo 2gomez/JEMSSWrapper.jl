@@ -1,21 +1,4 @@
 """
-MoveUp
-======
-
-Abstract interface for move-up strategies in JEMSS simulations.
-This module defines the interface that all move-up strategies must implement.
-"""
-module MoveUp
-
-using JEMSS
-
-export AbstractMoveUpStrategy, validate_moveup_decision
-
-# =============================================================================
-# ABSTRACT TYPES
-# =============================================================================
-
-"""
     AbstractMoveUpStrategy
 
 Abstract type for move-up decision strategies.
@@ -52,10 +35,6 @@ end
 ```
 """
 abstract type AbstractMoveUpStrategy end
-
-# =============================================================================
-# INTERFACE METHODS
-# =============================================================================
 
 """
     should_trigger_on_dispatch(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation) -> Bool
@@ -173,5 +152,3 @@ function validate_moveup_decision(movable_ambulances::Vector{JEMSS.Ambulance},
     
     return true
 end
-
-end # module MoveUp

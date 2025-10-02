@@ -2,19 +2,21 @@
 name = "auckland_base"
 scenario_name = "auckland"
 description = "Auckland scenario with standard configuration"
-version = "1.0"
-author = "JEMSSWrapper"
-data_dir = "deps/JEMSS/data/cities/auckland/models/1" # relative to WRAPPER_PATH
+models_dir = "models"  # relative to $scenarios_dir/$scenario_name
 
 [files]
 hospitals = "hospitals/hospitals_1.csv"
 stations = "stations/stations_1.csv"
 nodes = "travel/roads/nodes.csv"
 arcs = "travel/roads/arcs.csv"
-r_net_travels = "travel/roads/r_net_travels_jl-v1.11.6.jls"
+r_net_travels = "travel/roads/r_net_travels.jls"
 map = "maps/map_1.csv"
 travel = "travel/travel/travel_1.csv"
 priorities = "misc/call priorities/priorities_1.csv"
 stats = "calls/single/train/stats_control.csv"
 # demand = "demand/demand_1.csv"
 # demand_coverage = "demand/coverage/demand_coverage_1.csv"
+
+[defaults]
+ambulances = "ambulances/ambulances_1.csv"
+calls = "calls/single/train/gen_config.xml"

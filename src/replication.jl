@@ -1,20 +1,4 @@
 """
-Replication
-==========
-
-Extended replication utilities including strategy replication support.
-"""
-
-module Replication
-
-using JEMSS
-using ..Types: ScenarioData
-using ..MoveUp: AbstractMoveUpStrategy
-
-export create_simulation_instance
-
-
-"""
     create_simulation_instance(scenario::ScenarioData)
 
 Create simulation instance with the calls and ambulances.
@@ -80,7 +64,7 @@ function add_ambulances!(sim::JEMSS.Simulation, ambulances::Vector{JEMSS.Ambulan
     sim.ambulances = deepcopy(ambulances)
     sim.numAmbs = length(ambulances)
 
-    # Initialize ambulances adding the wakeup event
+    # Initialize ambulances 
     for ambulance in sim.ambulances
         JEMSS.initAmbulance!(sim, ambulance)
     end
@@ -91,5 +75,3 @@ function add_ambulances!(sim::JEMSS.Simulation, ambulances::Vector{JEMSS.Ambulan
         station.currentNumIdleAmbsSetTime = sim.startTime
     end
 end
-
-end # module Replication

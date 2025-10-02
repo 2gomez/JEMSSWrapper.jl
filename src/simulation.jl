@@ -1,17 +1,3 @@
-"""
-Simulation
-==========
-
-Custom simulation module with extensible move-up strategies.
-"""
-module Simulation
-
-using JEMSS
-using Printf
-using ..MoveUp: AbstractMoveUpStrategy, should_trigger_on_dispatch, should_trigger_on_free, decide_moveup
-
-export simulate_custom!
-
 # =============================================================================
 # MAIN SIMULATION FUNCTIONS
 # =============================================================================
@@ -355,5 +341,3 @@ function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, amb
         end
     end
 end
-
-end # module Simulation

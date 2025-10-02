@@ -1,4 +1,3 @@
-# src/JEMSSWrapper.jl
 """
 JEMSSWrapper
 ============
@@ -7,42 +6,25 @@ Main wrapper module for JEMSS simulation framework with extensible move-up strat
 """
 module JEMSSWrapper
 
+using Dates
 using JEMSS
+using TOML
+using Printf # To check
 
-@info "Successfully loaded JEMSS from local fork"
-
-# Make JEMSS accessible through JEMSSWrapper
-const jemss = JEMSS
-
-# Load modules
-include("utils/path_utils.jl")
-using .PathUtils
-
+include("paths.jl")
 include("types.jl")
-using .Types
-
-include("moveup.jl")
-using .MoveUp
-
 include("initialization.jl")
-using .Initialization
-
-include("scenario.jl")
-using .Scenario
-
 include("replication.jl")
-using .Replication
+include("scenario.jl")
+include("moveup.jl")
+include("simulation.jl")  # TODO: include validate_decision_moveup
+# include("evaluation.jl")  or stats.jl or metrics.jl  (Possible to future)
 
-include("simulation.jl")
-using .Simulation
-
-# Main exports
 export 
-    # JEMSS access
-    jemss,
-    
     # Scenario management
-    load_scenario_from_config,
+    load_scenario_from_config, 
+    update_scenario_calls, 
+    update_scenario_ambulances,
     
     # Simulation instances management
     create_simulation_instance, 
@@ -51,6 +33,9 @@ export
     simulate_custom!,
     
     # Move-up strategy interface
-    AbstractMoveUpStrategy 
+    AbstractMoveUpStrategy, 
+    should_trigger_on_dispatch,
+    should_trigger_on_free,
+    decide_moveup
 
 end # module JEMSSWrapper

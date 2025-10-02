@@ -1,18 +1,5 @@
-"""
-Initialization
-==========
-
-Unified simulation management including initialization.
-"""
-module Initialization
-
-using JEMSS
-using ..Types: ScenarioConfig, ScenarioData
-
-export initialize_simulation, initialize_ambulances, initialize_calls
-
 # =============================================================================
-# SIMULATION INITIALIZATION FUNCTIONS
+# MAIN INITIALIZATION FUNCTIONS
 # =============================================================================
 
 """
@@ -21,19 +8,14 @@ export initialize_simulation, initialize_ambulances, initialize_calls
 Initialize a complete simulation from configuration.
 """
 function initialize_simulation(config::ScenarioConfig)    
-    # Create basic simulation
     sim = initialize_basic_simulation(config)
     
-    # Setup network
     setup_network!(sim, config)
     
-    # Setup travel system
     setup_travel_system!(sim)
     
-    # Setup routing
     setup_location_routing!(sim)
     
-    # Setup statistics
     setup_simulation_statistics!(sim, config.stats_file)
     
     sim.initialised = true
@@ -47,7 +29,7 @@ end
 Initialize calls from CSV or XML file and split into sets.
 """
 function initialize_calls(sim::JEMSS.Simulation, filepath::String)
-    # Load the calls
+    # Load calls
     if endswith(filepath, ".csv")
         calls, _ = JEMSS.readCallsFile(filepath)
     elseif endswith(filepath, ".xml")
@@ -75,7 +57,7 @@ function initialize_ambulances(filepath::String)
 end
 
 # =============================================================================
-# INTERNAL/HELPER FUNCTIONS
+# INTERNAL FUNCTIONS
 # =============================================================================
 
 """
@@ -86,11 +68,9 @@ Initialize basic simulation structures.
 function initialize_basic_simulation(config::ScenarioConfig)
     sim = JEMSS.Simulation()
     
-    # Load basic data
+    # Load basic data and properties
     sim.hospitals = JEMSS.readHospitalsFile(config.hospitals_file)
     sim.stations = JEMSS.readStationsFile(config.stations_file)
-
-    # Setup basic properties
     sim.time = 0.0
     sim.startTime = 0.0
     sim.numHospitals = length(sim.hospitals)
@@ -145,7 +125,12 @@ function setup_network!(sim, config::ScenarioConfig)
     JEMSS.initFNetTravels!(sim.net, arcTravelTimes)
     JEMSS.createRGraphFromFGraph!(sim.net)
     JEMSS.checkGraph(sim.net.rGraph, sim.map)
-    JEMSS.createRNetTravelsFromFNetTravels!(sim.net; rNetTravelsLoaded=rNetTravelsLoaded)
+    if rNetTravelsLoaded != []
+        JEMSS.createRNetTravelsFromFNetTravels!(sim.net; rNetTravelsLoaded=rNetTravelsLoaded)
+    else
+        JEMSS.createRNetTravelsFromFNetTravels!(sim.net)
+        JEMSS.writeRNetTravelsFile(config.r_net_travel_file, sim.net.rNetTravels)
+    end
 end
 
 """
@@ -164,6 +149,7 @@ function setup_travel_system!(sim)
         travelMode.rNetTravel = sim.net.rNetTravels[travelMode.index]
     end
        
+    # Setup hospitals and stations map locations
     for hospital in sim.hospitals
         hospital.nearestNodeIndex, hospital.nearestNodeDist = 
             JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, hospital.location)
@@ -227,7 +213,7 @@ function setup_simulation_statistics!(sim, stats_file::String)
 end
 
 # =============================================================================
-# UTILITY FUNCTIONS
+# UTILITY INITIALIZATION FUNCTIONS
 # =============================================================================
 
 """
@@ -250,7 +236,7 @@ end
 Load R-network travels if file exists, otherwise return empty array.
 """
 function load_r_net_travels(r_net_travel_file::String)
-    return isempty(r_net_travel_file) ? JEMSS.NetTravel[] : JEMSS.readRNetTravelsFile(r_net_travel_file)
+    return isempty(r_net_travel_file) || !isfile(r_net_travel_file) ? JEMSS.NetTravel[] : JEMSS.readRNetTravelsFile(r_net_travel_file)
 end
 
 """
@@ -275,5 +261,3 @@ function find_nearest_hospital_to_node(node, hospitals, net, travelMode)
     
     return nearestHospitalIndex
 end
-
-end # module Simulation
