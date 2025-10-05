@@ -3,7 +3,7 @@ name: Documentation
 on:
   push:
     branches:
-      - main  # O 'master' si usas esa rama
+      - main
     tags: '*'
   pull_request:
 
@@ -18,12 +18,15 @@ jobs:
       
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1.10'  # O la versión que uses
+          version: '1.11'  # Coincide con tu compat
           
       - name: Install dependencies
         run: |
           julia --project=docs/ -e '
             using Pkg
+            # Primero añadir JEMSS desde GitHub
+            Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
+            # Luego desarrollar el paquete principal
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
             
