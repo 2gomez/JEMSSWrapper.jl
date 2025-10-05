@@ -26,11 +26,11 @@ jobs:
           using Pkg
           # Añadir JEMSS desde GitHub
           Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
-          # Desarrollar el paquete desde el directorio actual
-          Pkg.develop(PackageSpec(path=pwd()))
+          # IMPORTANTE: Para paquetes no registrados, NO uses Pkg.develop
+          # En su lugar, añade el paquete actual al LOAD_PATH
           Pkg.instantiate()
             
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia --project=docs/ docs/make.jl
+        run: julia --project=docs docs/make.jl
