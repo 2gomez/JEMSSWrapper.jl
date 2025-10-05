@@ -9,10 +9,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
+      pull-requests: read
       statuses: write
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
@@ -20,16 +22,18 @@ jobs:
         with:
           version: '1.11'
           
+      - uses: julia-actions/cache@v2
+      
       - name: Install dependencies
         shell: julia --color=yes --project=docs {0}
         run: |
           using Pkg
-          # Añadir JEMSS desde GitHub
+          # Añadir dependencias no registradas primero
           Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
-          # IMPORTANTE: Para paquetes no registrados, NO uses Pkg.develop
-          # En su lugar, añade el paquete actual al LOAD_PATH
+          # Desarrollar el paquete principal
+          Pkg.develop(PackageSpec(path=pwd()))
           Pkg.instantiate()
-            
+          
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

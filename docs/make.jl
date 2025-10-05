@@ -1,7 +1,4 @@
-push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
-
-using Documenter
-using JEMSSWrapper 
+using Documenter, JEMSSWrapper
 
 makedocs(
     sitename = "JEMSSWrapper.jl",
@@ -12,7 +9,6 @@ makedocs(
     pages = [
         "Home" => "index.md",
     ],
-    remotes = nothing,
 )
 
 deploydocs(
