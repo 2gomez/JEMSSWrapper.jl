@@ -1,3 +1,0 @@
-[submodule "deps/JEMSS"]
-	path = deps/JEMSS
-	url = https://github.com/2gomez/JEMSS.jl.git

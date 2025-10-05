@@ -1,3 +1,16 @@
+import JEMSSWrapper: SCENARIOS_DIR,
+                    create_config_from_toml, 
+                    initialize_basic_simulation,
+                    initialize_calls,
+                    initialize_ambulances, 
+                    setup_network!,
+                    setup_travel_system!,
+                    setup_location_routing!,
+                    setup_simulation_statistics!,
+                    copy_base_simulation,
+                    add_calls!,
+                    add_ambulances!
+
 @testset "Internal Tests" begin
     
     @testset "Config file validation" begin
@@ -87,8 +100,8 @@
         sim_copy.initialised = true
         sim.initialised = true
         
-        @test_nowarn simulate!(sim_copy) 
-        @test_nowarn simulate!(sim)
+        @test_nowarn JEMSS.simulate!(sim_copy) 
+        @test_nowarn JEMSS.simulate!(sim)
     end
     
 end

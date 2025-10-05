@@ -21,7 +21,11 @@ include("simulation.jl")  # TODO: include validate_decision_moveup
 # include("evaluation.jl")  or stats.jl or metrics.jl  (Possible to future)
 
 export 
+    # All JEMSS utils
+    JEMSS,
+
     # Scenario management
+    ScenarioData,
     load_scenario_from_config, 
     update_scenario_calls, 
     update_scenario_ambulances,

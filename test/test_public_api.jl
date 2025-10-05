@@ -14,7 +14,7 @@
         sim = create_simulation_instance(scenario)
         @test !isnothing(sim)
 
-        @test_nowarn simulate!(sim)
+        @test_nowarn JEMSS.simulate!(sim)
     end
 
 
@@ -42,7 +42,7 @@
 
         sim = create_simulation_instance(scenario)
         
-        @test_nowarn simulate!(sim)
+        @test_nowarn JEMSS.simulate!(sim)
 
     end
 
@@ -61,18 +61,18 @@
 
         sim = create_simulation_instance(scenario_custom)
 
-        @test_nowarn simulate!(sim)
+        @test_nowarn JEMSS.simulate!(sim)
     end
 
     @testset "Simulation execution" begin
         sim_01 = create_simulation_instance(base_scenario)
         sim_02 = create_simulation_instance(base_scenario)
 
-        @test_nowarn simulate!(sim_01)
+        @test_nowarn JEMSS.simulate!(sim_01)
         @test_nowarn simulate_custom!(sim_02)
 
-        @test getAvgCallResponseDuration(sim_01) == getAvgCallResponseDuration(sim_02)
-        @test getCallsReachedInTime(sim_01) == getCallsReachedInTime(sim_02)
+        @test JEMSS.getAvgCallResponseDuration(sim_01) == JEMSS.getAvgCallResponseDuration(sim_02)
+        @test JEMSS.getCallsReachedInTime(sim_01) == JEMSS.getCallsReachedInTime(sim_02)
     end
 
     @testset "Strategy Interface" begin
@@ -117,8 +117,8 @@
         simulate_custom!(sim_01) 
         simulate_custom!(sim_02; moveup_strategy = test_strat)
 
-        @test getAvgCallResponseDuration(sim_01) == getAvgCallResponseDuration(sim_02)
-        @test getCallsReachedInTime(sim_01) == getCallsReachedInTime(sim_02)
+        @test JEMSS.getAvgCallResponseDuration(sim_01) == JEMSS.getAvgCallResponseDuration(sim_02)
+        @test JEMSS.getCallsReachedInTime(sim_01) == JEMSS.getCallsReachedInTime(sim_02)
     end
 
 end
