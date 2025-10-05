@@ -9,5 +9,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/usuario/MiPaquete.jl.git",
+    repo = "github.com/2gomez/JEMSSWrapper.jl.git",
+    devbranch = "main"
 )
