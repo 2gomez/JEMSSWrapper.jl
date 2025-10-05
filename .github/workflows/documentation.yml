@@ -18,17 +18,17 @@ jobs:
       
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1.11'  # Coincide con tu compat
+          version: '1.11'
           
       - name: Install dependencies
+        shell: julia --color=yes --project=docs {0}
         run: |
-          julia --project=docs/ -e '
-            using Pkg
-            # Primero añadir JEMSS desde GitHub
-            Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
-            # Luego desarrollar el paquete principal
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
+          using Pkg
+          # Añadir JEMSS desde GitHub
+          Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
+          # Desarrollar el paquete desde el directorio actual
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.instantiate()
             
       - name: Build and deploy
         env:
