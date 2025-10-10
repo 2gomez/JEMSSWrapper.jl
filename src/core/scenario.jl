@@ -1,13 +1,35 @@
 """
-
     load_scenario_from_config(scenario_name::String, 
                               config_name::String;
                               ambulances_path::String = "",
                               calls_path::String = "",
-                              scenarios_dir::String = SCENARIOS_DIR) 
+                              scenarios_dir::String = SCENARIOS_DIR) -> ScenarioData
 
+Load a simulation scenario from TOML configuration files.
 
-Load a scenario using a TOML configuration file.
+Creates a complete scenario with infrastructure (stations, hospitals, road network),
+ambulances, and calls. The scenario can be modified later with `update_scenario_calls` 
+or `update_scenario_ambulances`.
+
+# Arguments
+- `scenario_name::String`: Name of the scenario (e.g., "auckland")
+- `config_name::String`: Name of the configuration file (e.g., "base.toml")
+- `ambulances_path::String`: Optional custom path to ambulances CSV
+- `calls_path::String`: Optional custom path to calls CSV
+- `scenarios_dir::String`: Base directory for scenarios (defaults to `SCENARIOS_DIR`)
+
+# Returns
+- `ScenarioData`: Immutable scenario configuration containing simulation, calls, and metadata
+
+# Examples
+```julia
+# Load default scenario
+scenario = load_scenario_from_config("auckland", "base.toml")
+
+# Load with custom calls
+scenario = load_scenario_from_config("auckland", "base.toml"; 
+                                     calls_path="custom_calls.csv")
+```
 """
 function load_scenario_from_config(scenario_name::String, 
                                   config_name::String;
@@ -102,31 +124,41 @@ Internal function to load scenario from ScenarioConfig.
 function load_scenario_internal(sim_config::ScenarioConfig, 
                                ambulances_path::String, 
                                calls_path::String)
-
     @info "Initializing simulation..."
     base_sim = initialize_simulation(sim_config)
     calls = initialize_calls(base_sim, calls_path)
     ambulances = initialize_ambulances(ambulances_path)
     
-    metadata = Dict{String, Any}(
-        "config_name" => sim_config.config_name,
-        "scenario_name" => sim_config.scenario_name,
-        "config_path" => sim_config.config_path,
-        "models_path" => sim_config.models_path,
-        "ambulances_path" => ambulances_path,
-        "calls_path" => calls_path
-    )
-    
+    metadata = scenario_config_to_dict(sim_config)
+    metadata["ambulances_path"] = ambulances_path
+    metadata["calls_path"] = calls_path 
+
     @info "Scenario loaded successfully!"
     
     return ScenarioData(base_sim, calls, ambulances, metadata)
 end
 
-"""
-    update_scenario_calls(scenario::ScenarioData, calls_path::String)
 
-Update only the calls in an existing scenario without reloading infrastructure.
-Supports both CSV files and XML generation configs.
+"""
+    update_scenario_calls(scenario::ScenarioData, calls_path::String) -> ScenarioData
+
+Update calls in an existing scenario without reloading infrastructure.
+
+Creates a new `ScenarioData` with modified calls while preserving stations, hospitals,
+and road network. Useful for testing different demand patterns on the same infrastructure.
+
+# Arguments
+- `scenario::ScenarioData`: Original scenario
+- `calls_path::String`: Path to new calls CSV file
+
+# Returns
+- `ScenarioData`: New scenario with updated calls
+
+# Examples
+```julia
+base_scenario = load_scenario_from_config("auckland", "base.toml")
+peak_scenario = update_scenario_calls(base_scenario, "peak_hours_calls.csv")
+```
 """
 function update_scenario_calls(scenario::ScenarioData, calls_path::String)
     calls = initialize_calls(scenario.base_simulation, calls_path)
@@ -140,9 +172,25 @@ function update_scenario_calls(scenario::ScenarioData, calls_path::String)
 end
 
 """
-    update_scenario_ambulances(scenario::ScenarioData, ambulances_path::String)
-    
-Update only ambulances without reloading infrastructure.
+    update_scenario_ambulances(scenario::ScenarioData, ambulances_path::String) -> ScenarioData
+
+Update ambulances in an existing scenario without reloading infrastructure.
+
+Creates a new `ScenarioData` with modified ambulance fleet while preserving infrastructure
+and calls. Useful for testing different fleet configurations.
+
+# Arguments
+- `scenario::ScenarioData`: Original scenario
+- `ambulances_path::String`: Path to new ambulances CSV file
+
+# Returns
+- `ScenarioData`: New scenario with updated ambulances
+
+# Examples
+```julia
+base_scenario = load_scenario_from_config("auckland", "base.toml")
+expanded_fleet = update_scenario_ambulances(base_scenario, "20_ambulances.csv")
+```
 """
 function update_scenario_ambulances(scenario::ScenarioData, ambulances_path::String)
     ambulances = initialize_ambulances(ambulances_path)

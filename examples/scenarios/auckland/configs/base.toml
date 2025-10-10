@@ -14,8 +14,8 @@ map = "maps/map_1.csv"
 travel = "travel/travel/travel_1.csv"
 priorities = "misc/call priorities/priorities_1.csv"
 stats = "calls/single/train/stats_control.csv"
-# demand = "demand/demand_1.csv"
-# demand_coverage = "demand/coverage/demand_coverage_1.csv"
+demand = "demand/demand_1.csv"
+demand_coverage = "demand/coverage/demand_coverage_1.csv"
 
 [defaults]
 ambulances = "ambulances/ambulances_1.csv"

@@ -27,9 +27,6 @@ La forma en la que **JEMSS.jl** crea una simulación comienza con cargar un arch
 
 En cambio, **JEMSSWrapper.jl** sigue la misma idea, pero separa los elementos de la configuración. Utiliza un archivo de configuracion TOML para definir los aspectos básicos inmutables como los hospitalas, la red de carreteras, demanda, etc. Con esto se inicializa una simulación base. Después, se utiliza un archivo con las ambulancias y llamadas para posteriormente inicializarlas. Hasta este punto, se construye una instancia de `ScenarioData` y la simulación está lista para ejecutarse. La ventaja en este punto está en la creación de replicas con diferentes estrategias de relocalización, ya que  `create_simulation_instance` está pensada para recibir un objeto `ScenarioData` con el que crear la nueva instancia de simulación. Además, al separar los elementos inmutables de las ambulancias y llamadas, hay una mayor flexibilidad para probar con diferentes ubicaciones iniciales de ambulancias y conjuntos de llamadas.
 
-## Estadísticas y logging de eventos
-
-TODO
 
 ## Otras consideraciones de JEMSSWrapper.jl
 

@@ -1,7 +1,24 @@
 """
-    create_simulation_instance(scenario::ScenarioData)
+    create_simulation_instance(scenario::ScenarioData) -> JEMSS.Simulation
 
-Create simulation instance with the calls and ambulances.
+Create a simulation instance from a scenario.
+
+Creates an independent simulation object that can be executed. Multiple simulation
+instances can be created from the same scenario for parallel experiment.
+
+# Arguments
+- `scenario::ScenarioData`: Scenario configuration
+
+# Returns
+- `JEMSS.Simulation`: Ready-to-run simulation instance
+
+# Examples
+```julia
+scenario = load_scenario_from_config("auckland", "base.toml")
+
+# Create simulation
+sim = create_simulation_instance(scenario)
+```
 """
 function create_simulation_instance(scenario::ScenarioData)
     base_sim = scenario.base_simulation
@@ -34,13 +51,15 @@ function copy_base_simulation(sim::JEMSS.Simulation)
     sim_copy.responseTravelPriorities = deepcopy(sim.responseTravelPriorities)
     sim_copy.travel = sim.travel # shallow copy, this is the heavy part of the object
     sim_copy.grid = deepcopy(sim.grid)
+    sim_copy.demandCoverage = sim.demandCoverage
+    sim_copy.inputFiles = sim.inputFiles
         
     sim_copy.addCallToQueue! = sim.addCallToQueue!
     sim_copy.findAmbToDispatch! = sim.findAmbToDispatch!
 
     sim_copy.eventList = Vector{JEMSS.Event}()
     
-    sim_copy.initialised = sim.initialised
+    sim_copy.initialised = true 
     return sim_copy
 end
  

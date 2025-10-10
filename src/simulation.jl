@@ -1,21 +1,45 @@
-# =============================================================================
-# MAIN SIMULATION FUNCTIONS
-# =============================================================================
-
 """
     simulate_custom!(sim::JEMSS.Simulation;
                     moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                    logger::Union{Nothing, MoveUpLogger} = nothing,
                     time::Real = Inf, 
                     duration::Real = Inf, 
                     numEvents::Real = Inf,
                     doPrint::Bool = false, 
                     printingInterval::Real = 1.0)
 
-Custom simulation function with extensible move-up strategies.
-When moveup_strategy is nothing, behaves identically to original JEMSS.simulate!
+Run a simulation with optional custom move-up strategy.
+
+Executes the simulation loop, processing events until completion or specified limits.
+When `moveup_strategy` is provided, uses custom relocation logic; otherwise behaves
+identically to standard JEMSS simulation.
+
+# Arguments
+- `sim::JEMSS.Simulation`: Simulation instance to run
+- `moveup_strategy::Union{Nothing, AbstractMoveUpStrategy}`: Custom strategy (optional)
+- `logger::Union{Nothing, MoveUpLogger}`: Logger of the move up decisions (optional)
+- `time::Real`: Stop at this simulation time (default: Inf)
+- `duration::Real`: Run for this duration (default: Inf)
+- `numEvents::Real`: Stop after this many events (default: Inf)
+- `doPrint::Bool`: Print progress during simulation (default: false)
+- `printingInterval::Real`: Time between progress prints (default: 1.0)
+
+# Examples
+```julia
+scenario = load_scenario_from_config("auckland", "base.toml")
+sim = create_simulation_instance(scenario; seed=42)
+
+# Run with custom strategy
+strategy = MyStrategy(threshold=0.5)
+simulate_custom!(sim; moveup_strategy=strategy)
+
+# Get results
+avg_response = JEMSS.getAvgCallResponseDuration(sim)
+```
 """
 function simulate_custom!(sim::JEMSS.Simulation;
                          moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                         logger::Union{Nothing, MoveUpLogger} = nothing,
                          time::Real = Inf, 
                          duration::Real = Inf, 
                          numEvents::Real = Inf,
@@ -37,6 +61,11 @@ function simulate_custom!(sim::JEMSS.Simulation;
     eventCount = 0
     printProgress() = doPrint && print(@sprintf("\rsim time: %-9.2f sim duration: %-9.2f events simulated: %-9d real duration: %.2f seconds", sim.time, sim.time - sim.startTime, eventCount, Base.time() - startTime))
 
+    # initialize strategy
+    if !isnothing(moveup_strategy)
+        initialize_strategy(moveup_strategy, sim)
+    end
+
     # simulate
     stats = sim.stats # shorthand
     while !sim.complete && sim.eventList[end].time <= time && eventCount < numEvents
@@ -44,7 +73,7 @@ function simulate_custom!(sim::JEMSS.Simulation;
             JEMSS.captureSimStats!(sim, stats.nextCaptureTime)
         end
 
-        simulate_next_event_custom!(sim, moveup_strategy)
+        simulate_next_event_custom!(sim, moveup_strategy, logger)
         eventCount += 1
 
         if doPrint && Base.time() >= nextPrintTime
@@ -69,11 +98,15 @@ end
 # =============================================================================
 
 """
-    simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy)
+    simulate_next_event_custom!(sim::JEMSS.Simulation, 
+                               moveup_strategy::Union{Nothing, AbstractMoveUpStrategy},
+                               logger::Union{Nothing, MoveUpLogger})
 
 Custom version of simulateNextEvent! with move-up strategy support.
 """
-function simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+function simulate_next_event_custom!(sim::JEMSS.Simulation,
+                                    moveup_strategy::Union{Nothing, AbstractMoveUpStrategy},
+                                    logger::Union{Nothing, MoveUpLogger})
     # get next event, update event index and sim time
     event = JEMSS.getNextEvent!(sim.eventList)
     if event.form == JEMSS.nullEvent
@@ -90,7 +123,7 @@ function simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy::Uni
         JEMSS.writeEventToFile!(sim, event)
     end
 
-    simulate_event_custom!(sim, event, moveup_strategy)
+    simulate_event_custom!(sim, event, moveup_strategy, logger)
 
     if length(sim.eventList) == 0
         # simulation complete
@@ -105,11 +138,15 @@ function simulate_next_event_custom!(sim::JEMSS.Simulation, moveup_strategy::Uni
 end
 
 """
-    simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy)
+    simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, 
+                          moveup_strategy::Union{Nothing, AbstractMoveUpStrategy},
+                          logger::Union{Nothing, MoveUpLogger})
 
 Custom version of simulateEvent! with move-up strategy support.
 """
-function simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+function simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, 
+                                moveup_strategy::Union{Nothing, AbstractMoveUpStrategy},
+                                logger::Union{Nothing, MoveUpLogger})
     @assert(sim.time == event.time)
 
     # Find event simulation function to match event form.
@@ -139,7 +176,7 @@ function simulate_event_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveu
     elseif form == JEMSS.ambReachesStation
         JEMSS.simulateEventAmbReachesStation!(sim, event)
     elseif form == JEMSS.considerMoveUp
-        simulate_event_consider_moveup_custom!(sim, event, moveup_strategy)
+        simulate_event_consider_moveup_custom!(sim, event, moveup_strategy, logger)
     elseif form == JEMSS.ambMoveUpToStation
         JEMSS.simulateEventAmbMoveUpToStation!(sim, event)
     else
@@ -256,7 +293,9 @@ end
 
 Custom handler for move-up consideration events.
 """
-function simulate_event_consider_moveup_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, moveup_strategy::Union{Nothing, AbstractMoveUpStrategy})
+function simulate_event_consider_moveup_custom!(sim::JEMSS.Simulation, event::JEMSS.Event, 
+                                               moveup_strategy::Union{Nothing, AbstractMoveUpStrategy},
+                                               logger::Union{Nothing, MoveUpLogger})
     @assert(event.form == JEMSS.considerMoveUp)
     ambulance = sim.ambulances[event.ambIndex] # ambulance that triggered consideration of move up
     @assert(event.callIndex == JEMSS.nullIndex)
@@ -270,7 +309,7 @@ function simulate_event_consider_moveup_custom!(sim::JEMSS.Simulation, event::JE
         # If move-up is disabled, do nothing (event is consumed)
     else
         # Use custom move-up strategy
-        execute_moveup_strategy!(sim, event, ambulance, moveup_strategy)
+        execute_moveup_strategy!(sim, event, ambulance, moveup_strategy, logger)
     end
 end
 
@@ -314,14 +353,17 @@ function should_trigger_moveup_on_free(sim::JEMSS.Simulation, moveup_strategy::U
 end
 
 """
-    execute_moveup_strategy!(sim, event, ambulance, strategy)
+    execute_moveup_strategy!(sim, event, ambulance, strategy, logger)
 
 Execute the custom move-up strategy.
 """
-function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, ambulance::JEMSS.Ambulance, strategy::AbstractMoveUpStrategy)
+function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, ambulance::JEMSS.Ambulance, 
+                                 strategy::AbstractMoveUpStrategy, logger::Union{Nothing, MoveUpLogger})
     # Get move-up decisions from strategy
-    (movableAmbs, ambStations) = decide_moveup(strategy, sim, ambulance)
-
+    (movableAmbs, ambStations, strategy_output) = decide_moveup(strategy, sim, ambulance)
+    
+    log_moveup!(logger, sim, ambulance, strategy, movableAmbs, ambStations, strategy_output)
+    
     # Execute the moves (same as original JEMSS logic)
     for i in eachindex(movableAmbs)
         amb = movableAmbs[i]
@@ -340,4 +382,59 @@ function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, amb
             JEMSS.addEvent!(sim.eventList; parentEvent=event, form=JEMSS.ambMoveUpToStation, time=sim.time, ambulance=amb, station=station)
         end
     end
+end
+
+"""
+    log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
+                    sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
+                    strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Float64})
+
+If the logger is not nothing, creates and add an entry of the move up decision in de logger registry.
+"""
+function log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
+                    sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
+                    strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Float64})
+    if !isnothing(logger)
+        encoded_state = encode_state(logger.encoder, sim, ambulance.index)
+        
+        log_entry = create_log_entry(
+            strategy, 
+            sim, 
+            ambulance,
+            encoded_state,
+            strategy_output,
+            movableAmbs,
+            ambStations
+        )
+        
+        add_entry!(logger, log_entry)
+    end
+end
+
+"""
+    simulate_scenario(scenario::ScenarioData;
+                     moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                     logger::Union{Nothing, MoveUpLogger} = nothing,
+                     time::Real = Inf, 
+                     duration::Real = Inf, 
+                     numEvents::Real = Inf,
+                     doPrint::Bool = false, 
+                     printingInterval::Real = 1.0)
+
+"""
+function simulate_scenario(scenario::ScenarioData;
+                          moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
+                          logger::Union{Nothing, MoveUpLogger} = nothing,
+                          time::Real = Inf, 
+                          duration::Real = Inf, 
+                          numEvents::Real = Inf,
+                          doPrint::Bool = false,
+                          printingInterval::Real = 1.0)::JEMSS.Simulation
+    sim = create_simulation_instance(scenario)
+
+    simulate_custom!(sim; moveup_strategy, logger, time, duration, numEvents, doPrint, printingInterval)
+    
+    return sim
 end

@@ -3,7 +3,7 @@
 
 Root directory of the JEMSSWrapper package.
 """
-const PROJECT_DIR = dirname(dirname(@__FILE__))
+const PROJECT_DIR = dirname(dirname(dirname(@__FILE__)))
 
 """
     SCENARIOS_DIR

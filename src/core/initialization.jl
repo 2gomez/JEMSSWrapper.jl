@@ -83,10 +83,17 @@ function initialize_basic_simulation(config::ScenarioConfig)
     sim.travel = JEMSS.readTravelFile(config.travel_file)
     
     # Setup demand
-    if !isempty(config.demand_file) & !isempty(config.demand_coverage_file)
-        JEMSS.initDemand!(sim, demandFilename=config.demand_file)
+    if !isempty(config.demand_coverage_file)
         sim.demandCoverage = JEMSS.readDemandCoverageFile(config.demand_coverage_file)
     end
+    
+    sim.inputFiles = Dict{String,File}()
+    demand_file = JEMSS.File()
+    demand_file.path = config.demand_file
+    sim.inputFiles["demand"] = demand_file 
+    demand_coverage_file = JEMSS.File()
+    demand_coverage_file.path= config.demand_coverage_file
+    sim.inputFiles["demandCoverage"] = demand_coverage_file 
 
     # Setup basic behavior
     sim.addCallToQueue! = JEMSS.addCallToQueueSortPriorityThenTime!

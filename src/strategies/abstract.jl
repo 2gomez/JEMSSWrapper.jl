@@ -102,6 +102,32 @@ function decide_moveup(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation, 
           "All AbstractMoveUpStrategy subtypes must implement this method.")
 end
 
+"""
+    initialize_strategy(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation) -> Nothing
+
+Initialize the strategy before the simulation starts (optional).
+
+This method is called once at the beginning of the simulation, before any events
+are processed. It allows strategies to perform any necessary setup or initialization
+based on the simulation configuration.
+
+By default, this method does nothing. Strategies only need to implement it if they
+require initialization logic (e.g., allocating buffers, computing initial statistics,
+setting up internal state).
+
+# Arguments
+- `strategy::AbstractMoveUpStrategy`: The move-up strategy instance
+- `sim::JEMSS.Simulation`: The simulation state at initialization
+
+# Returns
+- `Nothing`
+"""
+function initialize_strategy(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation)
+    # Default implementation: do nothing
+    # Concrete strategies can override if they need initialization
+    return nothing
+end
+
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
@@ -152,3 +178,4 @@ function validate_moveup_decision(movable_ambulances::Vector{JEMSS.Ambulance},
     
     return true
 end
+

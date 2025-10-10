@@ -3,9 +3,16 @@ uuid = "3ffb80e5-d622-48f0-97e0-c485a3b5e49b"
 version = "0.1.0"
 
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Cbc = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+GLPK = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
+Gurobi = "2e9cd046-0924-5485-92f1-d5272153d98b"
 JEMSS = "da3c27b9-5cdd-52db-94a3-a4eefd7acbab"
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
@@ -13,4 +20,6 @@ ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 JEMSS = {url = "https://github.com/uoa-ems-research/JEMSS.jl"}
 
 [compat]
+DataFrames = "1.8.0"
+Statistics = "1.11.1"
 julia = "1.11"
