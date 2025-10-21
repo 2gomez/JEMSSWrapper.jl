@@ -9,8 +9,6 @@ Base type for neural network architectures used in decision making.
 
 All concrete networks must implement:
 - `forward(network, input) -> Vector{Float64}`
-- `get_parameters(network) -> Vector{Float64}`
-- `set_parameters!(network, params)`
 """
 abstract type AbstractNeuralNetwork end
 

@@ -93,9 +93,10 @@ return which ambulances should be moved and their target stations.
 - `triggering_ambulance::JEMSS.Ambulance`: The ambulance that triggered this move-up consideration
 
 # Returns
-- `Tuple{Vector{JEMSS.Ambulance}, Vector{JEMSS.Station}}`: A tuple containing:
+- `Tuple{Vector{JEMSS.Ambulance}, Vector{JEMSS.Station}, Union{Nothing, Any}}`: A tuple containing:
   - Vector of ambulances that should be moved
   - Vector of target stations (same length as ambulances vector)
+  - Output data of the decide_moveup logic used for logging the decisions
 """
 function decide_moveup(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation, triggering_ambulance::JEMSS.Ambulance)
     error("decide_moveup not implemented for $(typeof(strategy)). " *
