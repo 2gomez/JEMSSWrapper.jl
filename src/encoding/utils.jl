@@ -1,27 +1,28 @@
 ################################################
 # Core generic accessor with special handling
 ################################################
-
 """
     get_entity_property(sim::JEMSS.Simulation, collection::Symbol, id::Int, property::Symbol)
 
 Get a specific property from a single entity in a simulation.
 
 This is the core generic accessor for simulation entities. It handles special cases
-automatically (e.g., ambulance locations that require route updates) and provides
+automatically (e.g., ambulance locations that require route updates) and provides 
 unified access to any entity property.
 
 # Arguments
 - `sim::JEMSS.Simulation`: The simulation instance
-- `collection::Symbol`: Entity collection name from `JEMSS.Simulation` (`:ambulances`, `:stations`, `:hospitals`)
+- `collection::Symbol`: Entity collection name (`:ambulances`, `:stations`, `:hospitals`, `:calls`)
 - `id::Int`: Entity ID (1-indexed)
-- `property::Symbol`: Property to retrieve (`:status`, `:class`, `:location`, etc.)
+- `property::Symbol`: Property to retrieve (`:status`, `:class`, `:location`, `:destination`, `:eta`, etc.)
 
 # Returns
 The value of the requested property for the specified entity.
 
 # Special Behavior
 - **Ambulance locations**: Automatically updates route state before returning location
+- **Ambulance destinations**: Returns the end location of the current route
+- **Ambulance ETA**: Returns time remaining until destination (negative if overdue)
 - **Other properties**: Direct property access without side effects
 
 # Throws
@@ -32,24 +33,31 @@ The value of the requested property for the specified entity.
 # Get ambulance properties
 status = get_entity_property(sim, :ambulances, 1, :status)
 class = get_entity_property(sim, :ambulances, 1, :class)
-location = get_entity_property(sim, :ambulances, 1, :location)  # Updates route
+location = get_entity_property(sim, :ambulances, 1, :location)      # Updates route
+destination = get_entity_property(sim, :ambulances, 1, :destination)
+eta = get_entity_property(sim, :ambulances, 1, :eta)
 
-# Get station location
+# Get station/hospital locations
 station_loc = get_entity_property(sim, :stations, 2, :location)
-
-# Get hospital location
 hospital_loc = get_entity_property(sim, :hospitals, 1, :location)
 
-# Get all ambulance statuses (using comprehension)
-all_statuses = [get_entity_property(sim, :ambulances, i, :status) for i in 1:sim.numAmbs]
+# Get call properties
+priority = get_entity_property(sim, :calls, 5, :priority)
 ```
 """
 function get_entity_property(sim::JEMSS.Simulation, collection::Symbol, id::Int, property::Symbol)
-    # Special case: ambulance location needs route update
-    if collection == :ambulances && property == :location
-        return get_ambulance_location!(sim, id)
-    end 
-    # General case: direct property access
+    # Special handling for ambulance-specific computed properties
+    if collection == :ambulances
+        if property == :location
+            return get_ambulance_location!(sim, id)
+        elseif property == :destination
+            return get_ambulance_destination(sim, id)
+        elseif property == :eta
+            return get_ambulance_eta(sim, id)
+        end
+    end
+    
+    # Default: direct property access
     entities = getproperty(sim, collection)
     @assert 1 ≤ id ≤ length(entities) "Invalid $collection ID: $id (max: $(length(entities)))"
     return getproperty(entities[id], property)
@@ -61,38 +69,52 @@ end
 Get a specific property from all entities in a collection.
 
 This is a convenience function that applies [`get_entity_property`](@ref) to all entities
-in the specified collection, automatically determining the collection size.
+in the specified collection. For ambulance-specific properties (`:location`, `:destination`, `:eta`),
+it uses optimized batch functions.
 
 # Arguments
 - `sim::JEMSS.Simulation`: The simulation instance
-- `collection::Symbol`: Entity collection name from `JEMSS.Simulation` object (`:ambulances`, `:stations`, `:hospitals`)
-- `property::Symbol`: Property to retrieve (`:status`, `:class`, `:location`, etc.)
+- `collection::Symbol`: Entity collection name (`:ambulances`, `:stations`, `:hospitals`, `:calls`)
+- `property::Symbol`: Property to retrieve
 
 # Returns
 - `Vector`: Array containing the property value for each entity in the collection
 
+# Performance Notes
+- Uses specialized batch functions for ambulance locations, destinations, and ETAs
+- For other properties, uses vectorized property access
+
 # Examples
 ```julia
-# Get status of all ambulances
+# Get all ambulance properties
 statuses = get_all_entity_properties(sim, :ambulances, :status)
+locations = get_all_entity_properties(sim, :ambulances, :location)      # Batch route updates
+destinations = get_all_entity_properties(sim, :ambulances, :destination)
+etas = get_all_entity_properties(sim, :ambulances, :eta)
 
-# Get locations of all ambulances (automatically updates routes)
-locations = get_all_entity_properties(sim, :ambulances, :location)
-
-# Get locations of all stations
+# Get all station/hospital locations
 station_locs = get_all_entity_properties(sim, :stations, :location)
-
-# Get locations of all hospitals
 hospital_locs = get_all_entity_properties(sim, :hospitals, :location)
 
-# Get classes of all ambulances
-classes = get_all_entity_properties(sim, :ambulances, :class)
+# Get all call priorities
+priorities = get_all_entity_properties(sim, :calls, :priority)
 ```
 """
 function get_all_entity_properties(sim::JEMSS.Simulation, collection::Symbol, property::Symbol)
+    # Special handling for ambulance-specific computed properties
+    if collection == :ambulances
+        if property == :location
+            return get_ambulances_locations!(sim)
+        elseif property == :destination
+            return get_ambulances_destinations(sim)
+        elseif property == :eta
+            return get_ambulances_eta(sim)
+        end
+    end
+    
+    # Default: vectorized property access
     entities = getproperty(sim, collection)
-    count = length(entities)
-    return [get_entity_property(sim, collection, i, property) for i in 1:count]
+    return [getproperty(entity, property) for entity in entities]
 end
 
 ################################################
@@ -120,21 +142,39 @@ function get_ambulances_locations!(sim::JEMSS.Simulation)::Vector{JEMSS.Location
 end
 
 """
-    locations_to_flat_vector(locs::Vector{Location})
+    get_ambulance_destination(sim::JEMSS.Simulation, ambulance_id::Int) -> JEMSS.Location
 
-Convert vector of Location objects to flat vector [x1, y1, x2, y2, ...].
-
-# Arguments
-- `locs::Vector{Location}`: Vector of Location objects
-
-# Returns
-- `Vector{Float64}`: Flat vector of coordinates
+Get the destination location for a specific ambulance.
 """
-function locations_to_flat_vector(locs::Vector{Location})
-    result = Vector{Float64}(undef, 2 * length(locs))
-    for (i, loc) in enumerate(locs)
-        result[2i - 1] = loc.x
-        result[2i] = loc.y
-    end
-    return result
+function get_ambulance_destination(sim::JEMSS.Simulation, ambulance_id::Int)::JEMSS.Location
+    @assert 1 ≤ ambulance_id ≤ sim.numAmbs "Invalid ambulance ID: $ambulance_id"
+    return sim.ambulances[ambulance_id].route.endLoc
+end
+
+"""
+    get_ambulances_destinations(sim::JEMSS.Simulation) -> Vector{JEMSS.Location}
+
+Get destination locations for all ambulances in the simulation.
+"""
+function get_ambulances_destinations(sim::JEMSS.Simulation)::Vector{JEMSS.Location}
+    return [get_ambulance_destination(sim, i) for i in 1:sim.numAmbs]
+end
+
+"""
+    get_ambulance_eta(sim::JEMSS.Simulation, ambulance_id::Int) -> Float64
+
+Get the estimated time until the ambulance reaches its destination.
+Returns negative value if past scheduled arrival time.
+"""
+function get_ambulance_eta(sim::JEMSS.Simulation, ambulance_id::Int)::Float64
+    return sim.ambulances[ambulance_id].route.endTime - sim.time
+end
+
+"""
+    get_ambulances_eta(sim::JEMSS.Simulation) -> Vector{Float64}
+
+Get the estimated times of arrival for all ambulances.
+"""
+function get_ambulances_eta(sim::JEMSS.Simulation)::Vector{Float64}
+    return [get_ambulance_eta(sim, i) for i in 1:sim.numAmbs]
 end

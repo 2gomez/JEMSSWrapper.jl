@@ -42,6 +42,7 @@ function initialize_calls(sim::JEMSS.Simulation, filepath::String)
     # Find nearest nodes
     for call in calls
         (call.nearestNodeIndex, call.nearestNodeDist) = JEMSS.findNearestNode(sim.map, sim.grid, sim.net.fGraph.nodes, call.location)
+        call.hospitalIndex = JEMSS.nearestHospitalToCall!(sim, call, lowPriority)
     end
 
     return calls
