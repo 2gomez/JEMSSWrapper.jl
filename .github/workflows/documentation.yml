@@ -10,10 +10,7 @@ on:
 jobs:
   build:
     permissions:
-      actions: write
-      contents: write
-      pull-requests: read
-      statuses: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,14 +22,13 @@ jobs:
       - uses: julia-actions/cache@v2
       
       - name: Install dependencies
-        shell: julia --color=yes --project=docs {0}
         run: |
-          using Pkg
-          Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
-          Pkg.develop(PackageSpec(path=pwd()))
-          Pkg.instantiate()
-          
-      - name: Build and deploy
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+      
+      - name: Build documentation
+        run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia --project=docs docs/make.jl
