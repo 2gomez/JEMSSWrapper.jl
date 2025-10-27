@@ -1,14 +1,4 @@
 """
-Metrics extraction from JEMSS simulations.
-
-This module provides standardized metric extraction for optimization.
-"""
-
-# ============================================================================
-# Metric Extraction Functions
-# ============================================================================
-
-"""
     get_avg_response_time(sim::JEMSS.Simulation) -> Float64
 
 Get average response time across all calls (in minutes).
@@ -132,57 +122,6 @@ function get_total_distance_traveled(sim::JEMSS.Simulation)
     return total_distance
 end
 
-# ============================================================================
-# Composite Metrics
-# ============================================================================
-
-"""
-    get_weighted_objective(sim::JEMSS.Simulation; 
-                          response_weight::Float64 = 1.0,
-                          survival_weight::Float64 = 0.0,
-                          utilization_weight::Float64 = 0.0) -> Float64
-
-Compute a weighted combination of multiple metrics.
-
-# Arguments
-- `response_weight`: Weight for avg response time (minimize)
-- `survival_weight`: Weight for survival rate (maximize)
-- `utilization_weight`: Weight for utilization balance (target ~0.7)
-
-# Returns
-Combined objective value (lower is better for optimization)
-"""
-function get_weighted_objective(sim::JEMSS.Simulation;
-                               response_weight::Float64 = 1.0,
-                               survival_weight::Float64 = 0.0,
-                               utilization_weight::Float64 = 0.0)
-    objective = 0.0
-    
-    # Response time component (minimize)
-    if response_weight > 0
-        objective += response_weight * get_avg_response_time(sim)
-    end
-    
-    # Survival rate component (maximize -> minimize negative)
-    if survival_weight > 0
-        objective -= survival_weight * get_survival_rate(sim)
-    end
-    
-    # Utilization penalty (penalize deviation from ideal ~0.7)
-    if utilization_weight > 0
-        util = get_ambulance_utilization(sim)
-        ideal_util = 0.7
-        util_penalty = abs(util - ideal_util)
-        objective += utilization_weight * util_penalty
-    end
-    
-    return objective
-end
-
-# ============================================================================
-# Metric Summary
-# ============================================================================
-
 """
     SimulationMetrics
 
@@ -191,27 +130,34 @@ Container for all metrics from a simulation run.
 struct SimulationMetrics
     avg_response_time::Float64
     survival_rate::Float64
-    percentile_90::Float64
+    percentile::Float64
     max_response_time::Float64
     utilization::Float64
     num_relocations::Int
     total_distance::Float64
+
+    survival_threshold::Float64
+    response_percentile::Float64
 end
 
 """
-    extract_all_metrics(sim::JEMSS.Simulation; survival_threshold::Float64 = 8.0) -> SimulationMetrics
+    extract_all_metrics(sim::JEMSS.Simulation; survival_threshold::Float64 = 8.0,
+                        percentile::Float64 = 90.0) -> SimulationMetrics
 
 Extract all metrics from a simulation into a structured object.
 """
-function extract_all_metrics(sim::JEMSS.Simulation; survival_threshold::Float64 = 8.0)
+function extract_all_metrics(sim::JEMSS.Simulation; survival_threshold::Float64 = 8.0, 
+                             percentile::Float64 = 90.0)
     return SimulationMetrics(
         get_avg_response_time(sim),
         get_survival_rate(sim, threshold=survival_threshold),
-        get_percentile_response_time(sim, percentile=90.0),
+        get_percentile_response_time(sim, percentile=percentile),
         get_max_response_time(sim),
         get_ambulance_utilization(sim),
         get_num_relocations(sim),
-        get_total_distance_traveled(sim)
+        get_total_distance_traveled(sim),
+        survival_threshold,
+        percentile
     )
 end
 
@@ -223,10 +169,105 @@ Pretty print simulation metrics.
 function Base.show(io::IO, metrics::SimulationMetrics)
     println(io, "SimulationMetrics:")
     println(io, "  Avg Response Time: $(round(metrics.avg_response_time, digits=2)) min")
-    println(io, "  Survival Rate (8min): $(round(metrics.survival_rate * 100, digits=1))%")
-    println(io, "  90th Percentile: $(round(metrics.percentile_90, digits=2)) min")
+    println(io, "  Survival Rate ($(survival_threshold)min): $(round(metrics.survival_rate * 100, digits=1))%")
+    println(io, "  $(response_percentile)th Percentile: $(round(metrics.percentile, digits=2)) min")
     println(io, "  Max Response Time: $(round(metrics.max_response_time, digits=2)) min")
     println(io, "  Utilization: $(round(metrics.utilization * 100, digits=1))%")
     println(io, "  Relocations: $(metrics.num_relocations)")
     println(io, "  Total Distance: $(round(metrics.total_distance, digits=2))")
+end
+
+"""
+    get_metric(sim::JEMSS.Simulation, metric::Symbol; kwargs...) -> Union{Float64, Int, Vector{Float64}}
+
+Central dispatcher function to extract any simulation metric by name.
+
+This serves as a single point of control for all metric extraction, making it easier to:
+- Change metric implementations in one place
+- Add logging or validation
+- Handle errors consistently
+- Document all available metrics
+
+# Arguments
+- `sim::JEMSS.Simulation`: Completed simulation instance
+- `metric::Symbol`: Name of the metric to extract
+- `kwargs...`: Metric-specific parameters (e.g., `threshold`, `percentile`)
+
+# Available Metrics
+- `:avg_response_time` - Average response time (minutes)
+- `:response_times` - Vector of all response times
+- `:survival_rate` - Fraction under threshold (kwargs: `threshold=8.0`)
+- `:percentile_response_time` - Nth percentile (kwargs: `percentile=90.0`)
+- `:max_response_time` - Maximum response time
+- `:ambulance_utilization` - Average busy fraction [0,1]
+- `:num_relocations` - Total move-up relocations
+- `:total_distance` - Total distance traveled
+- `:num_calls_processed` - Number of processed calls
+
+# Returns
+- Metric value (type depends on metric)
+
+# Throws
+- `ArgumentError`: If metric name is not recognized
+
+# Examples
+```julia
+# Basic usage
+avg_time = get_metric(sim, :avg_response_time)
+survival = get_metric(sim, :survival_rate, threshold=10.0)
+p95 = get_metric(sim, :percentile_response_time, percentile=95.0)
+
+# Get all times for custom analysis
+times = get_metric(sim, :response_times)
+median_time = median(times)
+
+# Error handling
+try
+    value = get_metric(sim, :invalid_metric)
+catch e
+    println("Metric not found: \$e")
+end
+```
+
+# Performance Note
+For extracting multiple metrics, consider using `get_simulation_metrics()` instead,
+which computes all metrics efficiently in fewer passes over the data.
+"""
+function get_metric(sim::JEMSS.Simulation, metric::Symbol; kwargs...)
+    if metric == :avg_response_time
+        return get_avg_response_time(sim)
+        
+    elseif metric == :response_times
+        return get_response_times(sim)
+        
+    elseif metric == :survival_rate
+        threshold = get(kwargs, :threshold, 8.0)
+        return get_survival_rate(sim; threshold=threshold)
+        
+    elseif metric == :percentile_response_time
+        percentile = get(kwargs, :percentile, 90.0)
+        return get_percentile_response_time(sim; percentile=percentile)
+        
+    elseif metric == :max_response_time
+        return get_max_response_time(sim)
+        
+    elseif metric == :ambulance_utilization
+        return get_ambulance_utilization(sim)
+        
+    elseif metric == :num_relocations
+        return get_num_relocations(sim)
+        
+    elseif metric == :total_distance
+        return get_total_distance_traveled(sim)
+        
+    elseif metric == :num_calls_processed
+        return length(get_response_times(sim))
+        
+    else
+        throw(ArgumentError("Unknown metric: $metric. Available metrics: " *
+                          ":avg_response_time, :response_times, :survival_rate, " *
+                          ":percentile_response_time, :max_response_time, " *
+                          ":ambulance_utilization, :num_relocations, :total_distance, " *
+                          ":num_calls_processed"))
+    end
 end

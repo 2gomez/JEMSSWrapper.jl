@@ -22,9 +22,9 @@ function JEMSSWrapper.forward(net::SimpleNetwork, input::Vector{Float64})
     return exp_vals ./ sum(exp_vals)
 end
 
-JEMSSWrapper.get_parameters(net::SimpleNetwork) = copy(net.weights)
+get_parameters(net::SimpleNetwork) = copy(net.weights)
 
-function JEMSSWrapper.set_parameters!(net::SimpleNetwork, params::Vector{Float64})
+function set_parameters!(net::SimpleNetwork, params::Vector{Float64})
     net.weights .= params
     return nothing
 end

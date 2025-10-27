@@ -1,6 +1,16 @@
 # Strategy Development Guide
 
-Learn how to develop intelligent ambulance relocation strategies using JEMSSWrapper's extensible framework.
+Learn how to develop ambulance relocation strategies using JEMSSWrapper's extensible framework.
+
+---
+
+## Table of Contents
+
+- [Undestanding Dynamic Relocation](#understanding-dynamic-relocation)
+- [How Strategies Work in JEMSSWrapper](#how-strategies-work-in-jemsswrapper)
+- [The Strategy Interface](#the-strategy-interface)
+- [Working with Simulation State](#working-with-simulation-state)
+---
 
 ## Understanding Dynamic Relocation
 
@@ -52,16 +62,15 @@ JEMSSWrapper.should_trigger_on_free(::MyStrategy, sim) = false
 
 # Decide relocations
 function JEMSSWrapper.decide_moveup(::MyStrategy, sim, amb)
-    return ([], [])  # (ambulances_to_move, target_stations)
+    return ([], [], [])  # (ambulances_to_move, target_stations, metadata_decision)
 end
 ```
 
 **Test it:**
 
 ```julia
-scenario = load_scenario_from_config("test", "config.toml")
-sim = create_simulation_instance(scenario)
-simulate_custom!(sim; moveup_strategy=MyStrategy())
+scenario = load_scenario_from_config("auckland", "config.toml")
+sim = simulate_scenario!(sim; moveup_strategy=MyStrategy())
 ```
 
 ---
@@ -96,68 +105,38 @@ end
 
 ## Working with Simulation State
 
-Your strategy has full access to the simulation state through the `sim` object:
+JEMSSWrapper provides two main functions to extract information from a running simulation:
 
+### `get_entity_property`
+Retrieves a specific property from a single entity. Handles special cases automatically (e.g., ambulance locations that require route updates).
 ```julia
-sim.ambulances    # Vector of all ambulances
-sim.stations      # Vector of all stations  
-sim.hospitals     # Vector of all hospitals
-sim.time          # Current simulation time
-sim.numAmbs       # Number of ambulances (convenience)
-sim.numStations   # Number of stations (convenience)
+# Get ambulance status
+status = get_entity_property(sim, :ambulances, 1, :status)
+
+# Get station location
+location = get_entity_property(sim, :stations, 2, :location)
 ```
 
-> **For complete details** about all available state, enums, and structures, see the [Simulation State Reference](@ref).
+### `get_all_entity_properties`
+Retrieves the same property from all entities in a collection. Uses optimized batch operations when available.
+```julia
+# Get all ambulance statuses
+statuses = get_all_entity_properties(sim, :ambulances, :status)
+
+# Get all hospital locations
+locations = get_all_entity_properties(sim, :hospitals, :location)
+```
+
+Both functions work with the main entity collections: `:ambulances`, `:stations`, `:hospitals`, and `:calls`.
+
+> **For complete details** about all available state, enums, structures and how to extract information from them see the [Simulation State Reference](@ref).
 
 ---
 
-## Common Mistakes
-
-### ❌ Moving Busy Ambulances
-
-```julia
-# WRONG - might move busy ambulances
-all_ambs = sim.ambulances
-return ([all_ambs[1]], [target_station])
-
-# CORRECT - check status first
-idle_ambs = filter(a -> a.status == ambIdleAtStation, sim.ambulances)
-if !isempty(idle_ambs)
-    return ([idle_ambs[1]], [target_station])
-end
-```
-
-### ❌ Mismatched Vector Lengths
-
-```julia
-# WRONG - 2 ambulances, 1 station
-return ([amb1, amb2], [station1])
-
-# CORRECT - matching lengths
-return ([amb1, amb2], [station1, station2])
-```
-
-### ❌ Incorrect Return Type
-
-```julia
-# WRONG - returning nothing
-if no_relocations_needed
-    return nothing
-end
-
-# CORRECT - always return tuple of vectors
-if no_relocations_needed
-    return ([], [])
-end
-```
-
----
-
-## Next Steps
+## See also 
 
 Now that you understand how to write strategies, explore:
 
 - **[Simulation State Reference](@ref)** - Complete details on all available state
-- **[Strategy Examples]()** - More real-world implementations
+- **[Neural Network Strategy](@ref)** - Relocation strategy with neural networks 
 - **[API Reference](@ref)** - Complete function documentation
-- **[Benchmarking Guide]()** - Evaluate strategy performance

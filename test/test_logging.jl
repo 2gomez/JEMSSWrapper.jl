@@ -50,8 +50,6 @@
         encoder = MockEncoder()
         logger = JEMSSWrapper.MoveUpLogger(encoder)
         
-        @test JEMSSWrapper.num_entries(logger) == 0
-        
         # Add entries
         entry1 = JEMSSWrapper.MoveUpLogEntry(
             100.0, 1, [1.0, 2.0], [0.5, 0.5],
@@ -68,15 +66,12 @@
         JEMSSWrapper.add_entry!(logger, entry1)
         JEMSSWrapper.add_entry!(logger, entry2)
         
-        @test JEMSSWrapper.num_entries(logger) == 2
-        
         entries = JEMSSWrapper.get_entries(logger)
         @test length(entries) == 2
         @test entries[1].timestamp < entries[2].timestamp
         
         # Clear
         JEMSSWrapper.clear_log!(logger)
-        @test JEMSSWrapper.num_entries(logger) == 0
     end
     
     # =========================================================================

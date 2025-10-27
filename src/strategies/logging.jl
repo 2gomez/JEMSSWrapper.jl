@@ -1,12 +1,4 @@
 """
-Data structures for logging move-up decisions.
-"""
-
-# ============================================================================
-# Core Data Structures
-# ============================================================================
-
-"""
     MoveUpDecision
 
 Represents a single ambulance relocation decision.
@@ -46,10 +38,6 @@ struct MoveUpLogEntry
     strategy_type::String
 end
 
-# ============================================================================
-# Logger
-# ============================================================================
-
 """
     MoveUpLogger
 
@@ -75,10 +63,6 @@ mutable struct MoveUpLogger
         new(encoder, MoveUpLogEntry[])
     end
 end
-
-# ============================================================================
-# Logger Operations
-# ============================================================================
 
 """
     create_log_entry(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation,
@@ -149,9 +133,7 @@ end
 """
     get_entries(logger::MoveUpLogger) -> Vector{MoveUpLogEntry}
 
-Get all logged entries.
-
-Returns entries in chronological order (order they were added).
+Get all logged entries in chronological order. 
 """
 get_entries(logger::MoveUpLogger) = logger.entries
 
@@ -159,20 +141,11 @@ get_entries(logger::MoveUpLogger) = logger.entries
     clear_log!(logger::MoveUpLogger)
 
 Clear all logged entries.
-
-Useful when reusing the same logger across multiple simulation runs.
 """
 function clear_log!(logger::MoveUpLogger)
     empty!(logger.entries)
     return nothing
 end
-
-"""
-    num_entries(logger::MoveUpLogger) -> Int
-
-Get the number of logged entries.
-"""
-num_entries(logger::MoveUpLogger) = length(logger.entries)
 
 # ============================================================================
 # DataFrame Conversion
@@ -270,35 +243,4 @@ function to_dataframe(logger::MoveUpLogger)
     end
     
     return df
-end
-
-"""
-    save_dataframe(logger::MoveUpLogger, filepath::String)
-
-Convert logger entries to DataFrame and save as CSV.
-
-# Arguments
-- `filepath`: Path where the CSV file will be saved
-
-# Notes
-- Automatically appends .csv extension if not present
-- Overwrites existing files
-"""
-function save_dataframe(logger::MoveUpLogger, filepath::String)
-    # Ensure .csv extension
-    if !endswith(filepath, ".csv")
-        filepath = filepath * ".csv"
-    end
-    
-    df = to_dataframe(logger)
-    
-    if isempty(df)
-        @warn "No data to save"
-        return nothing
-    end
-    
-    CSV.write(filepath, df)
-    @info "DataFrame saved" filepath=filepath rows=nrow(df) columns=ncol(df)
-    
-    return nothing
 end

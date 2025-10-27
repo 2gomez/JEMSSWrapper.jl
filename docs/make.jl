@@ -8,11 +8,12 @@ makedocs(
     ),
     pages = [
         "Home" => "index.md",
-        "JEMSS vs JEMSSWrapper" => "jemss_vs_wrapper.md",
+        # "JEMSS vs JEMSSWrapper" => "jemss_vs_wrapper.md",
         "User Guide" => [
             "Scenario Configuration" => "scenario_configuration.md",
             "Strategy Development Guide" => "strategies.md",
-            "Simulation State" => "simulation_state.md"
+            "Simulation State" => "simulation_state.md",
+            "Neural Network Strategy" => "neural_strategy.md"
         ],
        "API Reference" => "api.md"
     ],

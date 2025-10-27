@@ -1,6 +1,6 @@
-# JEMSSWrapper.jl Documentation
+# JEMSSWrapper.jl
 
-*A Julia wrapper for JEMSS.jl designed to facilitate custom ambulance relocation strategies through neuroevolution*
+*A Julia wrapper for JEMSS.jl designed to facilitate custom ambulance relocation strategies through evoluation and neuroevolution*
 
 ## Overview
 
@@ -8,7 +8,7 @@ JEMSSWrapper.jl provides a clean, extensible interface to the [JEMSS.jl](https:/
 
 **Key Features:**
 - **Dynamic relocation strategies**: Create custom strategies using an abstract class without modifying the simulator internally.
-- **Replication with policy changes**: Designed for move-up policie optimization with neuroevolution worflows, that require running multiple simulations with different parameters.  
+- **Replication with policy changes**: Designed for move-up policie optimization with evoluation based worflows, that require running multiple simulations with different parameters.  
 - **TOML-based configuration**: configuration with TOML files instead of XML, plus a scenario object for easier call and ambulance set modifications.
 
 ## Quick Start
@@ -22,7 +22,6 @@ Pkg.develop(path="/path/to/JEMSSWrapper.jl")
 
 # Option 2: installing from GitHub repository
 Pkg.add(url="https://github.com/2gomez/JEMSSWrapper.jl")
-Pkg.add(url="https://github.com/2gomez/JEMSSWrapper.jl")
 ```
 
 ### Basic Simulation
@@ -33,40 +32,20 @@ using JEMSSWrapper
 # Load scenario
 scenario = load_scenario_from_config("auckland", "base.toml")
 
-# Create simulation
-sim = create_simulation_instance(scenario)
-
 # Define a custom strategy
 struct MyStrategy <: AbstractMoveUpStrategy end
 
 JEMSSWrapper.should_trigger_on_dispatch(::MyStrategy, sim) = true
 JEMSSWrapper.should_trigger_on_free(::MyStrategy, sim) = false
-JEMSSWrapper.decide_moveup(::MyStrategy, sim, amb) = ([], [])
+JEMSSWrapper.decide_moveup(::MyStrategy, sim, amb) = ([], [], [])
 
-# Run simulation
-simulate_custom!(sim; moveup_strategy=MyStrategy())
+# Run a simulation instance from the scenario
+sim = simulate_scenario!(sim; moveup_strategy=MyStrategy())
 
 # Get results
-println("Average response time: ", JEMSS.getAvgCallResponseDuration(sim))
+avg_response_time = get_metric(sim, :avg_response_time) # in days
+println("Average response time: $(avg_response_time * 24 * 60) minutes") 
 ```
-
-### Core Concepts
-
-#### ScenarioData
-
-An immutable struct containing a basic scenario defined by:
-- The base simulation object. Without the calls and ambulances.
-- The initialized calls set to use in the simulation.
-- The ambulances and its initial positions to use in the simulation.
-- Metadata of the scenario configuración, base simulation, calls and ambulances.
-
-#### AbstractMoveUpStrategy
-
-An interface for implementing custom ambulance relocation policies. Each strategie has to decide:
-
-- **When** to trigger relocations: on dispatch or on ambulance free.
-- **Which** ambulances to move.
-- **Where** to send them.
 
 ## License
 

@@ -1,6 +1,3 @@
-################################################
-# Core generic accessor with special handling
-################################################
 """
     get_entity_property(sim::JEMSS.Simulation, collection::Symbol, id::Int, property::Symbol)
 
@@ -116,10 +113,6 @@ function get_all_entity_properties(sim::JEMSS.Simulation, collection::Symbol, pr
     entities = getproperty(sim, collection)
     return [getproperty(entity, property) for entity in entities]
 end
-
-################################################
-# Helper functions 
-################################################
 
 """
     get_ambulance_location!(sim::JEMSS.Simulation, ambulance_id::Int)

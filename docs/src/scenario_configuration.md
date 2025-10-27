@@ -2,19 +2,6 @@
 
 Learn how to configure and work with simulation scenarios in JEMSSWrapper.
 
-## Quick Start
-
-```julia
-using JEMSSWrapper
-
-# Load a scenario
-scenario = load_scenario_from_config("auckland", "base.toml")
-
-# Create and run simulation
-sim = create_simulation_instance(scenario)
-simulate_custom!(sim)
-```
-
 ---
 
 ## Table of Contents
@@ -24,7 +11,6 @@ simulate_custom!(sim)
 - [Loading Scenarios](#loading-scenarios)
 - [Modifying Scenarios](#modifying-scenarios)
 - [Creating New Scenarios](#creating-new-scenarios)
-- [Common Issues](#common-issues)
 
 ---
 
@@ -117,7 +103,7 @@ All paths are relative to `scenarios/{scenario_name}/{models_dir}/`.
 - `map`: Geographic map data
 - `travel`: Travel time configuration
 - `priorities`: Call priority definitions
-- `stats`: Statistical configuration (PENDING TO CHECK) 
+- `stats`: Statistical configuration
 
 **Auto-generated**:
 - `r_net_travels`: Serialized travel network (computed from nodes/arcs on first run)
@@ -192,9 +178,6 @@ base_scenario = load_scenario_from_config("auckland", "base.toml")
 # Update with different call patterns
 peak_scenario = update_scenario_calls(base_scenario, "data/peak_calls.csv")
 night_scenario = update_scenario_calls(base_scenario, "data/night_calls.csv")
-
-# Infrastructure (stations, hospitals, network) remains the same
-# Only calls are updated - very fast!
 ```
 
 ### Update Ambulances
@@ -206,9 +189,8 @@ Test different fleet configurations:
 base_scenario = load_scenario_from_config("auckland", "base.toml")
 
 # Try different fleet sizes
-fleet_10 = update_scenario_ambulances(base_scenario, "data/10_ambulances.csv")
-fleet_15 = update_scenario_ambulances(base_scenario, "data/15_ambulances.csv")
-fleet_20 = update_scenario_ambulances(base_scenario, "data/20_ambulances.csv")
+fleet_10_scenario = update_scenario_ambulances(base_scenario, "data/10_ambulances.csv")
+fleet_15_scenario = update_scenario_ambulances(base_scenario, "data/15_ambulances.csv")
 ```
 
 ---
@@ -217,16 +199,7 @@ fleet_20 = update_scenario_ambulances(base_scenario, "data/20_ambulances.csv")
 
 ### Step 1: Prepare Model Files
 
-Option A - Use JEMSS city models:
-
-```julia
-using JEMSS
-
-# JEMSS includes several city models
-jemss_data = joinpath(dirname(dirname(pathof(JEMSS))), "data", "cities")
-
-# Available cities: auckland, edmonton, manhattan, utrecht
-```
+Option A - Use JEMSS city models from `JEMSS_DATA_DIR` path. Available cities: auckland, edmonton, manhattan, utrecht
 
 Option B - Prepare your own model files following JEMSS format.
 
@@ -268,7 +241,7 @@ Create `scenarios/my_city/configs/base.toml` following the format shown above. E
 
 ```julia
 scenario = load_scenario_from_config("my_city", "base.toml")
-sim = create_simulation_instance(scenario)
+sim = simulate_scenario(scenario)
 
 # Verify it loaded correctly
 println("Stations: ", sim.numStations)
@@ -276,31 +249,7 @@ println("Ambulances: ", sim.numAmbs)
 println("Hospitals: ", sim.numHospitals)
 ```
 
----
-
-## Creating Simulation Instances
-
-A scenario defines the **configuration**, but you need to create a simulation **instance** to run:
-
-```julia
-# One scenario, multiple independent simulations
-scenario = load_scenario_from_config("auckland", "base.toml")
-
-# Run 10 replications
-for rep in 1:10
-    sim = create_simulation_instance(scenario; seed=rep)
-    simulate_custom!(sim)
-    # Collect statistics...
-end
-```
-
-Each call to `create_simulation_instance` creates an independent copy that can be simulated without affecting others.
-
----
-
 ## See Also
 
-- **[Getting Started]()** - Basic usage guide
-- **[Running Simulations]()** - Execution and output
 - **[API Reference](@ref)** - Complete function documentation
 - **[JEMSS.jl Data](https://github.com/uoa-ems-research/JEMSS.jl/tree/master/data/cities)** - Example city models

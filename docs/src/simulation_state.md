@@ -4,17 +4,26 @@ Complete technical reference for accessing and understanding the simulation stat
 
 > **Note**: This page documents the core data structures from [JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl) that are accessible in move-up strategies.
 
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Simulation Structure](#simulation-structure)
+- [Entities and Attributes](#entities-and-attributes)
+- [Enumerations](#enumerations)
+- [Accessing State Information](#accessing-state-information)
+- [Advanced Access](#advanced-access)
+
+---
+
 ## Overview
 
-When implementing a move-up strategy, your `decide_moveup` function receives a `sim::Simulation` object containing the complete state of the emergency medical system:
-
+When implementing a move-up strategy, your `decide_moveup` function receives a `sim::Simulation` object containing the complete state of the emergency medical system. This state can be accessed using the utility functions described below, which handle special cases and optimizations automatically.
 ```julia
 function decide_moveup(strategy::MyStrategy, sim, ambulance)
-    # Access complete system state
-    sim.ambulances    # All ambulances
-    sim.stations      # All stations
-    sim.hospitals     # All hospitals
-    sim.time          # Current simulation time
+    # Use get_entity_property and get_all_entity_properties
+    # to safely access simulation state
     
     # Your decision logic...
 end
@@ -22,233 +31,262 @@ end
 
 ---
 
-## Simulation
+## Simulation Structure
 
-The main container for all simulation state.
-
+JEMSS works with a `Simulation` object that contains all the simulation state:
 ```julia
-# Essential fields
-sim.time              # Current simulation time (Float, in days)
-sim.ambulances        # Vector{Ambulance} - all ambulances
-sim.stations          # Vector{Station} - all stations
-sim.hospitals         # Vector{Hospital} - all hospitals
-sim.calls             # Vector{Call} - all emergency calls
+mutable struct Simulation
+    # Time
+    startTime::Float
+    time::Float
+    endTime::Float
 
-# Convenience accessors
-sim.numAmbs           # Int - number of ambulances
-sim.numStations       # Int - number of stations
-sim.numHospitals      # Int - number of hospitals
-sim.numCalls          # Int - number of calls
-```
+    # World
+    net::Network
+    travel::Travel
+    map::Map
+    grid::Grid
 
-### Advanced Fields
+    # Main entities 
+    ambulances::Vector{Ambulance}
+    calls::Vector{Call}
+    hospitals::Vector{Hospital}
+    stations::Vector{Station}
 
-For advanced strategies requiring travel time calculations or coverage analysis:
+    # Convenience:
+    numAmbs::Int
+    numCalls::Int
+    numHospitals::Int
+    numStations::Int
 
-- `sim.net::Network` - Road network graph
-- `sim.travel::Travel` - Travel time and distance calculations
-- `sim.grid::Grid` - Spatial grid for coverage
-- `sim.demand::Demand` - Demand modeling
+    ...
 
-> **Complete details**: [Simulation struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
+    # Other important fields 
+    mobilisationDelay::MobilisationDelay
+    demand::Demand
+    demandCoverage::DemandCoverage
+    stats::SimStats
 
----
+    ...
 
-## Ambulance
-
-Represents an emergency response vehicle.
-
-### Core Fields
-
-```julia
-# Identity
-ambulance.index              # Int - unique identifier (1-based)
-ambulance.class              # AmbClass - als or bls
-
-# Current state
-ambulance.status             # AmbStatus - operational status
-ambulance.stationIndex       # Int - home station index
-ambulance.callIndex          # Int - assigned call (if any)
-
-# Location
-ambulance.currentLoc         # Location - current position
-ambulance.destLoc            # Location - destination
-
-# Useful statistics
-ambulance.numMoveUps         # Int - total relocations
-ambulance.numDispatches      # Int - total dispatches
-ambulance.dispatchTime       # Float - when dispatched to current call
-```
-
-The `ambulance.currentLoc` is not computed online. Each time you want to known the exact location of the vehicle, it is needed to compute it.
-
-### Ambulance Status
-
-The `status` field indicates what the ambulance is currently doing:
-
-```julia
-ambIdleAtStation       # At station, ready for dispatch ✓
-ambMobilising          # Preparing to depart
-ambGoingToCall         # En route to emergency
-ambAtCall              # On scene with patient
-ambGoingToHospital     # Transporting patient
-ambAtHospital          # At hospital (handover)
-ambFreeAfterCall       # Just finished call ✓
-ambReturningToStation  # Going back to station
-ambMovingUpToStation   # Relocating (move-up)
-ambSleeping            # Off duty
-```
-
-**For move-up**: Only consider ambulances with status `ambIdleAtStation` or `ambFreeAfterCall`.
-
-### Ambulance Class
-
-```julia
-@enum AmbClass begin
-    als  # Advanced Life Support (paramedics)
-    bls  # Basic Life Support (EMTs)
+    Simulation() = new(nullTime, nullTime, nullTime, ...)
 end
 ```
 
-> **Complete details**: [Ambulance struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
+> **Complete struct**: [Simulation struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
 
 ---
 
-## Station
+## Entities and Attributes
 
-Represents an ambulance station.
+| Entity | Attribute | Type | Description |
+|--------|-----------|------|-------------|
+| **Ambulance** | `index` | Int | Unique ambulance identifier |
+| | `status` | AmbStatus | Operational state (see Ambulance States) |
+| | `stationIndex` | Int | Assigned base station ID |
+| | `callIndex` | Int | Currently assigned call ID (if applicable) |
+| | `class` | AmbClass | Ambulance type (see Ambulance Classes) |
+| | `route.startLoc` | Location | Route start location |
+| | `route.endLoc` | Location | Route destination location |
+| | `route.startTime` | Float | Route start time (days) |
+| | `route.endTime` | Float | Route end time (days) |
+| | `route.priority` | Priority | Travel priority level (see Priority Levels) |
+| **Call** | `index` | Int | Unique call identifier |
+| | `location` | Location | Emergency location (lat/lon coordinates) |
+| | `priority` | Priority | Priority level (see Priority Levels) |
+| | `transport` | Bool | Whether hospital transport is required |
+| | `hospitalIndex` | Int | Destination hospital ID (if applicable) |
+| **Station** | `index` | Int | Unique identifier |
+| | `location` | Location | Station location (lat/lon coordinates) |
+| | `capacity` | Int | Maximum ambulance capacity |
+| **Hospital** | `index` | Int | Unique identifier |
+| | `location` | Location | Hospital location (lat/lon coordinates) |
+| **Global State** | `time` | Float | Current simulation time (days from start) |
+| | `startTime` | Float | Simulation start time |
+| | `endTime` | Float | Simulation end time |
 
-### Core Fields
-
-```julia
-# Identity and location
-station.index                # Int - unique identifier
-station.location             # Location - geographic position
-station.capacity             # Int - maximum ambulances
-
-# Real-time state
-station.currentNumIdleAmbs   # Int - current idle ambulances
-station.currentNumIdleAmbsSetTime  # Float - when last updated
-
-# Network data
-station.nearestNodeIndex     # Int - closest road network node
-station.nearestNodeDist      # Float - distance to nearest node
-```
-
-> **Complete details**: [Station struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
-
----
-
-## Hospital
-
-Represents a hospital that receives patients.
-
-### Core Fields
-
-```julia
-# Identity and location
-hospital.index               # Int - unique identifier
-hospital.location            # Location - geographic position
-
-# Statistics
-hospital.numCalls            # Int - total calls received
-
-# Network data
-hospital.nearestNodeIndex    # Int - closest road network node
-hospital.nearestNodeDist     # Float - distance to nearest node
-```
-
-> **Complete details**: [Hospital struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
+> **Note:** 
+> - `Location` objects contain `x` (longitude) and `y` (latitude) coordinates in decimal degrees.
+> - Ambulance route information is only valid when actively traveling (states 3, 5, 8, 9).
+> - From an ambulance's `route`, you can extract its current position and estimated time of arrival (ETA) to destination.
+> - When idle at a station, ambulance location corresponds to `stations[stationIndex].location`.
+> - Use `get_entity_property(sim, :ambulances, id, :location)` for automatic position calculation.
 
 ---
 
-## Call
+## Enumerations
 
-Represents an emergency call. While not directly used in `decide_moveup()`, understanding calls helps with demand-aware strategies.
+JEMSS defines several enumeration types to represent categorical states and properties in the simulation. These enumerations provide type-safe identifiers for ambulance classes, priority levels, and operational states.
 
-### Core Fields
+> **Complete definitions**: [defs.jl in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/defs.jl)
 
-```julia
-call.index                   # Int - unique identifier
-call.priority                # Priority - urgency level
-call.location                # Location - emergency location
-call.arrivalTime             # Float - when call came in
-call.dispatchTime            # Float - when ambulance dispatched
-call.responseTime            # Float - time to reach scene
-```
 
-### Call Priority
+### Ambulance Classes
 
-```julia
-@enum Priority begin
-    lowPriority     # Non-urgent
-    medPriority     # Moderate urgency
-    highPriority    # Critical
-end
-```
+| Value | Description |
+|-------|-------------|
+| `als` | Advanced Life Support - Paramedics with advanced medical capabilities |
+| `bls` | Basic Life Support - Emergency Medical Technicians with basic care |
 
-> **Complete details**: [Call struct in JEMSS.jl](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)
+### Priority Levels
+
+| Value | Level | Description |
+|-------|-------|-------------|
+| `lowPriority` | 3 | Non-urgent cases |
+| `medPriority` | 2 | Moderate urgency |
+| `highPriority` | 1 | Critical, life-threatening emergencies |
+
+
+### Ambulance States
+
+| Value | ID | Description |
+|-------|-----|-------------|
+| `ambNullStatus` | 0 | Null/undefined state |
+| `ambIdleAtStation` | 1 | At station, available for dispatch |
+| `ambMobilising` | 2 | Preparing to depart |
+| `ambGoingToCall` | 3 | En route to emergency |
+| `ambAtCall` | 4 | On scene attending to patient |
+| `ambGoingToHospital` | 5 | Transporting patient to hospital |
+| `ambAtHospital` | 6 | At hospital (patient transfer) |
+| `ambFreeAfterCall` | 7 | Just finished call, ready for next assignment |
+| `ambReturningToStation` | 8 | Returning to base station |
+| `ambMovingUpToStation` | 9 | Relocating to another station (move-up) |
+| `ambSleeping` | 10 | Out of service |
+
+### Call States
+
+| Value | ID | Description |
+|-------|-----|-------------|
+| `callNullStatus` | 0 | Null/undefined state |
+| `callScreening` | 1 | Under initial evaluation |
+| `callQueued` | 2 | In queue, waiting for assignment |
+| `callWaitingForAmb` | 3 | Assigned, waiting for ambulance arrival |
+| `callOnSceneTreatment` | 4 | Ambulance on scene, treating patient |
+| `callGoingToHospital` | 5 | Patient being transported |
+| `callAtHospital` | 6 | Patient transfer at hospital |
+| `callProcessed` | 7 | Incident completed and closed |
 
 ---
 
-## Accessing State in Strategies
+## Accessing State Information
 
-JEMSSWrapper provides convenient utility functions to access simulation state without dealing with internal details.
+JEMSSWrapper provides two main utility functions to access simulation state safely and efficiently, handling special cases automatically.
 
-### Single Entity Properties
+### `get_entity_property` - Single Entity Access
+
+Retrieves a specific property from one entity. This is the recommended way to access entity data as it handles special cases automatically.
 ```julia
-# Get any property from a specific entity
-property = get_entity_property(sim, collection, id, property_name)
+get_entity_property(sim, collection, id, property_name)
+```
 
-# Examples:
+**Arguments:**
+- `sim::Simulation`: The simulation instance
+- `collection::Symbol`: Entity type (`:ambulances`, `:stations`, `:hospitals`, `:calls`)
+- `id::Int`: Entity identifier (1-indexed)
+- `property_name::Symbol`: Property to retrieve
+
+**Basic Examples:**
+```julia
+# Ambulance properties
 status = get_entity_property(sim, :ambulances, 1, :status)
-location = get_entity_property(sim, :ambulances, 1, :location)  # Auto-updates route!
-station_loc = get_entity_property(sim, :stations, 5, :location)
+class = get_entity_property(sim, :ambulances, 1, :class)
+station = get_entity_property(sim, :ambulances, 1, :stationIndex)
+
+# Station properties
+location = get_entity_property(sim, :stations, 5, :location)
+capacity = get_entity_property(sim, :stations, 5, :capacity)
+
+# Hospital properties
 hospital_loc = get_entity_property(sim, :hospitals, 2, :location)
+
+# Call properties
+priority = get_entity_property(sim, :calls, 10, :priority)
+transport = get_entity_property(sim, :calls, 10, :transport)
 ```
 
-### All Entities at Once
+**Special Ambulance Properties:**
+
+For ambulances, three computed properties have special handling:
 ```julia
-# Get a property from all entities in a collection
-properties = get_all_entity_properties(sim, collection, property_name)
+# Current location (automatically updates route state)
+location = get_entity_property(sim, :ambulances, 1, :location)
 
-# Examples:
-all_statuses = get_all_entity_properties(sim, :ambulances, :status)
-all_locations = get_all_entity_properties(sim, :ambulances, :location)
-station_locations = get_all_entity_properties(sim, :stations, :location)
+# Destination location (route.endLoc)
+destination = get_entity_property(sim, :ambulances, 1, :destination)
+
+# Estimated time of arrival in days (negative if overdue)
+eta = get_entity_property(sim, :ambulances, 1, :eta)
 ```
 
-### Essential Fields Cheat Sheet
+### `get_all_entity_properties` - Batch Access
 
+Retrieves the same property from all entities in a collection. Uses optimized batch operations for ambulance special properties.
 ```julia
-# Simulation
-sim.time              # Current time (Float, days)
-sim.ambulances        # All ambulances
-sim.stations          # All stations
-sim.numAmbs           # Number of ambulances
-
-# Ambulance
-amb.index             # Unique ID
-amb.status            # AmbStatus enum
-amb.stationIndex      # Home station
-amb.class             # als or bls
-amb.currentLoc        # Current location
-amb.destLoc           # Destionation location
-
-# Station
-station.index         # Unique ID
-station.location      # Position
-station.capacity      # Max ambulances
-station.currentNumIdleAmbs  # Current idle count
-
-# Hospitals
-hospital.index        # Unique ID
-hospital.location     # Position
+get_all_entity_properties(sim, collection, property_name)
 ```
+
+**Arguments:**
+- `sim::Simulation`: The simulation instance
+- `collection::Symbol`: Entity type (`:ambulances`, `:stations`, `:hospitals`, `:calls`)
+- `property_name::Symbol`: Property to retrieve
+
+**Returns:** Vector containing the property value for each entity.
+
+**Examples:**
+```julia
+# All ambulance statuses
+statuses = get_all_entity_properties(sim, :ambulances, :status)
+
+# All ambulance locations (batch route updates)
+locations = get_all_entity_properties(sim, :ambulances, :location)
+
+# All ambulance destinations
+destinations = get_all_entity_properties(sim, :ambulances, :destination)
+
+# All ambulance ETAs
+etas = get_all_entity_properties(sim, :ambulances, :eta)
+
+# All station locations
+station_locs = get_all_entity_properties(sim, :stations, :location)
+
+# All call priorities
+priorities = get_all_entity_properties(sim, :calls, :priority)
+```
+
+### Usage in Move-Up Strategies
+
+These functions are particularly useful when implementing custom strategies:
+```julia
+function decide_moveup(strategy::MyStrategy, sim, ambulance)
+    # Get all ambulance locations efficiently
+    all_locations = get_all_entity_properties(sim, :ambulances, :location)
+    
+    # Get specific ambulance destination
+    my_destination = get_entity_property(sim, :ambulances, ambulance.index, :destination)
+    
+    # Check ETAs for all ambulances
+    all_etas = get_all_entity_properties(sim, :ambulances, :eta)
+    
+    # Get all station locations
+    station_locs = get_all_entity_properties(sim, :stations, :location)
+    
+    # Your decision logic here...
+    return target_station_index
+end
+```
+
+---
+
+## Advanced Access
+
+While `get_entity_property` and `get_all_entity_properties` cover most common use cases, advanced strategies can access other simulation components directly. This includes time information (`sim.time`, `sim.startTime`, `sim.endTime`), spatial data structures (`sim.net`, `sim.travel`, `sim.map`, `sim.grid`), entity counts (`sim.numAmbs`, `sim.numStations`, etc.), and other components like `sim.mobilisationDelay`, `sim.demand`, and `sim.stats`. Direct access is useful for strategies requiring network analysis, spatial computations, or custom metrics beyond basic entity properties.
+
+> **For implementation details** of these data structures, refer to the [JEMSS.jl source code](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl).
+
+---
 
 ## See Also
 
 - **[Strategy Development Guide](@ref)** - Practical guide with examples
 - **[JEMSS.jl Repository](https://github.com/uoa-ems-research/JEMSS.jl)** - Original simulator
-- **[JEMSS Types](https://github.com/uoa-ems-research/JEMSS.jl/blob/master/src/types/types.jl)** - Complete struct definitions
 - **[API Reference](@ref)** - JEMSSWrapper functions

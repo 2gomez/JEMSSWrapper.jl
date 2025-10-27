@@ -1,7 +1,3 @@
-# =============================================================================
-# MAIN INITIALIZATION FUNCTIONS
-# =============================================================================
-
 """
     initialize_simulation(config::ScenarioConfig)
 
@@ -56,10 +52,6 @@ Load ambulances from a CSV file.
 function initialize_ambulances(filepath::String)
     return JEMSS.readAmbsFile(filepath)
 end
-
-# =============================================================================
-# INTERNAL FUNCTIONS
-# =============================================================================
 
 """
     initialize_basic_simulation(config::ScenarioConfig)
@@ -219,10 +211,6 @@ function setup_simulation_statistics!(sim, stats_file::String)
     warmup_duration = stats.warmUpDuration > 0 ? stats.warmUpDuration : first(stats.periodDurationsIter)
     stats.nextCaptureTime = sim.startTime + warmup_duration
 end
-
-# =============================================================================
-# UTILITY INITIALIZATION FUNCTIONS
-# =============================================================================
 
 """
     calculate_grid_dimensions(nodes, map)

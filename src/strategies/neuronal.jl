@@ -1,8 +1,4 @@
 """
-Neural network-based strategies for ambulance relocation.
-"""
-
-"""
     AbstractNeuralNetwork
 
 Base type for neural network architectures used in decision making.
@@ -55,10 +51,6 @@ mutable struct NeuronalStrategy <: AbstractMoveUpStrategy
         new(encoder, network, trigger_on_dispatch, trigger_on_free)
     end
 end
-
-# ============================================================================
-# MoveUp Interface Implementation
-# ============================================================================
 
 function should_trigger_on_dispatch(strategy::NeuronalStrategy, sim::JEMSS.Simulation)
     return strategy.trigger_on_dispatch

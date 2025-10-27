@@ -22,13 +22,11 @@ include("core/scenario.jl")
 include("core/metrics.jl")
 
 include("encoding/abstract.jl")
-include("encoding/utils.jl")
-include("encoding/basic.jl")
+include("encoding/state.jl")
 
 include("strategies/abstract.jl")
 include("strategies/logging.jl")
 
-# Implemented strategies
 include("strategies/neuronal.jl")
 include("strategies/ddsm.jl")
 include("strategies/nullstrategy.jl")
@@ -40,18 +38,17 @@ export
     JEMSS,
 
     # Scenario management
-    ScenarioConfig,
     ScenarioData,
     load_scenario_from_config, 
     update_scenario_calls, 
     update_scenario_ambulances,
     
-    # Simulation instances management
-    create_simulation_instance, 
-    
-    # Custom simulation with move-up strategies
-    simulate_custom!,
+    # Simulation from an scenario 
     simulate_scenario,
+
+    # Metrics
+    extract_all_metrics,
+    get_metric,
     
     # Move-up strategy interface
     AbstractMoveUpStrategy, 
@@ -64,29 +61,20 @@ export
     get_entity_property,
     get_all_entity_properties,
     
-    # Neural strategy components (types and interface)
+    # Neural strategy
     AbstractEncoder, 
-    AbstractNeuralNetwork,
     encode_state, 
+    AbstractNeuralNetwork,
     forward, 
-
-    # Encodings
-    BasicStateEncoder,
+    NeuronalStrategy,
 
     # Logging system
-    MoveUpDecision,
-    MoveUpLogEntry,
     MoveUpLogger,
-    create_log_entry,
-    add_entry!,
     get_entries,
     clear_log!,
-    num_entries,
     to_dataframe,
-    save_dataframe,
 
-    # Move-up Strategies
-    NeuronalStrategy,
+    # Move-up Implemented
     DDSMStrategy,
     NullStrategy
 

@@ -103,12 +103,12 @@
         # Test 5: Complete implementation works
         JEMSSWrapper.should_trigger_on_dispatch(::TestStrategy, sim::JEMSS.Simulation) = true
         JEMSSWrapper.should_trigger_on_free(::TestStrategy, sim::JEMSS.Simulation) = false
-        JEMSSWrapper.decide_moveup(::TestStrategy, sim::JEMSS.Simulation, amb::JEMSS.Ambulance) = (JEMSS.Ambulance[], JEMSS.Station[]) 
+        JEMSSWrapper.decide_moveup(::TestStrategy, sim::JEMSS.Simulation, amb::JEMSS.Ambulance) = (JEMSS.Ambulance[], JEMSS.Station[], []) 
         
         sim_test = create_simulation_instance(base_scenario)
         @test should_trigger_on_dispatch(test_strat, sim_test) == true
         @test should_trigger_on_free(test_strat, sim_test) == false
-        @test decide_moveup(test_strat, sim_test, sim_test.ambulances[1]) == (JEMSS.Ambulance[], JEMSS.Station[])
+        @test decide_moveup(test_strat, sim_test, sim_test.ambulances[1]) == (JEMSS.Ambulance[], JEMSS.Station[], [])
 
         # Test 6: Simulate complete simluation execution
         sim_01 = create_simulation_instance(base_scenario)

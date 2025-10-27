@@ -388,14 +388,14 @@ end
     log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
                     strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Float64})
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Any})
 
 If the logger is not nothing, creates and add an entry of the move up decision in de logger registry.
 """
 function log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
                     strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Float64})
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Any})
     if !isnothing(logger)
         encoded_state = encode_state(logger.encoder, sim, ambulance.index)
         
@@ -421,8 +421,34 @@ end
                      duration::Real = Inf, 
                      numEvents::Real = Inf,
                      doPrint::Bool = false, 
-                     printingInterval::Real = 1.0)
+                     printingInterval::Real = 1.0) -> JEMSS.Simulation
 
+High-level function to run a complete simulation from scenario data.
+
+Convenience wrapper that creates a simulation instance from `ScenarioData` and runs it
+with optional custom move-up strategy. Returns the completed simulation for result analysis.
+
+# Arguments
+- `scenario::ScenarioData`: Scenario configuration loaded from TOML
+- `moveup_strategy::Union{Nothing, AbstractMoveUpStrategy}`: Custom relocation strategy (optional)
+- `logger::Union{Nothing, MoveUpLogger}`: Logger for move-up decisions (optional)
+- `time::Real`: Stop at this simulation time (default: Inf)
+- `duration::Real`: Run for this duration (default: Inf)
+- `numEvents::Real`: Stop after this many events (default: Inf)
+- `doPrint::Bool`: Print progress during simulation (default: false)
+- `printingInterval::Real`: Time between progress prints (default: 1.0)
+
+# Returns
+- `JEMSS.Simulation`: Completed simulation instance with results
+
+# Examples
+```julia
+# Load and simulate with default settings
+scenario = load_scenario_from_config("auckland", "base.toml")
+sim = simulate_scenario(scenario)
+avg_response_time = get_metric(sim, :avg_response_time)
+println("Average response time: ", avg_response_time * 24 * 60, " minutes") 
+```
 """
 function simulate_scenario(scenario::ScenarioData;
                           moveup_strategy::Union{Nothing, AbstractMoveUpStrategy} = nothing,
@@ -432,9 +458,18 @@ function simulate_scenario(scenario::ScenarioData;
                           numEvents::Real = Inf,
                           doPrint::Bool = false,
                           printingInterval::Real = 1.0)::JEMSS.Simulation
+    # Create simulation instance 
     sim = create_simulation_instance(scenario)
-
-    simulate_custom!(sim; moveup_strategy, logger, time, duration, numEvents, doPrint, printingInterval)
+    
+    # Run simulation with provided parameters
+    simulate_custom!(sim; 
+                    moveup_strategy=moveup_strategy, 
+                    logger=logger, 
+                    time=time, 
+                    duration=duration, 
+                    numEvents=numEvents, 
+                    doPrint=doPrint, 
+                    printingInterval=printingInterval)
     
     return sim
 end
