@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Neural Network Strategy · JEMSSWrapper.jl</title><meta name="title" content="Neural Network Strategy · JEMSSWrapper.jl"/><meta property="og:title" content="Neural Network Strategy · JEMSSWrapper.jl"/><meta property="twitter:title" content="Neural Network Strategy · JEMSSWrapper.jl"/><meta name="description" content="Documentation for JEMSSWrapper.jl."/><meta property="og:description" content="Documentation for JEMSSWrapper.jl."/><meta property="twitter:description" content="Documentation for JEMSSWrapper.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">JEMSSWrapper.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><span class="tocitem">User Guide</span><ul><li><a class="tocitem" href="../scenario_configuration/">Scenario Configuration</a></li><li><a class="tocitem" href="../strategies/">Strategy Development Guide</a></li><li><a class="tocitem" href="../simulation_state/">Simulation State</a></li><li class="is-active"><a class="tocitem" href>Neural Network Strategy</a><ul class="internal"><li><a class="tocitem" href="#Overview"><span>Overview</span></a></li><li><a class="tocitem" href="#Key-Concepts"><span>Key Concepts</span></a></li><li><a class="tocitem" href="#Architecture-Design"><span>Architecture Design</span></a></li><li><a class="tocitem" href="#Usage-Example"><span>Usage Example</span></a></li><li><a class="tocitem" href="#Integration-with-Neuroevolution"><span>Integration with Neuroevolution</span></a></li><li><a class="tocitem" href="#See-Also"><span>See Also</span></a></li></ul></li></ul></li><li><a class="tocitem" href="../api/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">User Guide</a></li><li class="is-active"><a href>Neural Network Strategy</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Neural Network Strategy</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/2gomez/JEMSSWrapper.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/2gomez/JEMSSWrapper.jl/blob/main/docs/src/neural_strategy.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Neural-Network-Strategy"><a class="docs-heading-anchor" href="#Neural-Network-Strategy">Neural Network Strategy</a><a id="Neural-Network-Strategy-1"></a><a class="docs-heading-anchor-permalink" href="#Neural-Network-Strategy" title="Permalink"></a></h1><h2 id="Overview"><a class="docs-heading-anchor" href="#Overview">Overview</a><a id="Overview-1"></a><a class="docs-heading-anchor-permalink" href="#Overview" title="Permalink"></a></h2><p>The <code>NeuronalStrategy</code> materializes the integration of neural networks as decision-making policies <span>$\pi_\theta$</span>, where <span>$\theta$</span> represents the network weights. This strategy serves as the foundation for all neuroevolution algorithms implemented in JEMSSWrapper.</p><p>The architecture combines two fundamental components through composition:</p><pre><code class="language-julia hljs">mutable struct NeuronalStrategy &lt;: AbstractMoveUpStrategy
+    encoder::AbstractEncoder           # Implements function E
+    network::AbstractNeuralNetwork     # Implements function f_θ
+    trigger_on_dispatch::Bool          # Activation on dispatch
+    trigger_on_free::Bool              # Activation on free
+end</code></pre><hr/><h2 id="Key-Concepts"><a class="docs-heading-anchor" href="#Key-Concepts">Key Concepts</a><a id="Key-Concepts-1"></a><a class="docs-heading-anchor-permalink" href="#Key-Concepts" title="Permalink"></a></h2><h3 id="State-Encoding"><a class="docs-heading-anchor" href="#State-Encoding">State Encoding</a><a id="State-Encoding-1"></a><a class="docs-heading-anchor-permalink" href="#State-Encoding" title="Permalink"></a></h3><p>Neural networks require numerical input. The encoder transforms the simulation state into a vector:</p><p class="math-container">\[\mathbf{x}_t = E(s_t)\]</p><p>where <span>$E$</span> is the encoder function, <span>$s_t$</span> is the current state, and <span>$\mathbf{x}_t \in \mathbb{R}^d$</span> is the encoded representation.</p><h3 id="Network-Output"><a class="docs-heading-anchor" href="#Network-Output">Network Output</a><a id="Network-Output-1"></a><a class="docs-heading-anchor-permalink" href="#Network-Output" title="Permalink"></a></h3><p>The neural network processes the encoded state and outputs scores for each station:</p><p class="math-container">\[\mathbf{z}_t = f_\theta(\mathbf{x}_t)\]</p><p>where <span>$f_\theta$</span> is the neural network and <span>$\mathbf{z}_t \in \mathbb{R}^M$</span> contains scores for all <span>$M$</span> stations.</p><h3 id="Action-Selection"><a class="docs-heading-anchor" href="#Action-Selection">Action Selection</a><a id="Action-Selection-1"></a><a class="docs-heading-anchor-permalink" href="#Action-Selection" title="Permalink"></a></h3><p>The strategy selects the station with the highest score:</p><p class="math-container">\[j^* = \argmax_{j \in \{1,\ldots,M\}} z_{t,j}\]</p><p>This determines which station the ambulance should relocate to.</p><hr/><h2 id="Architecture-Design"><a class="docs-heading-anchor" href="#Architecture-Design">Architecture Design</a><a id="Architecture-Design-1"></a><a class="docs-heading-anchor-permalink" href="#Architecture-Design" title="Permalink"></a></h2><p>This architecture completely decouples:</p><ul><li><strong>State representation</strong> (encoder <span>$E$</span>) </li><li><strong>Decision policy</strong> (network <span>$f_\theta$</span>)</li></ul><p>This separation allows combining different encoders with different neural network architectures, providing maximum flexibility for experimentation.</p><hr/><h2 id="Usage-Example"><a class="docs-heading-anchor" href="#Usage-Example">Usage Example</a><a id="Usage-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Usage-Example" title="Permalink"></a></h2><h3 id="Basic-Setup"><a class="docs-heading-anchor" href="#Basic-Setup">Basic Setup</a><a id="Basic-Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Basic-Setup" title="Permalink"></a></h3><pre><code class="language-julia hljs">using JEMSSWrapper
+
+# Load scenario
+scenario = load_scenario_from_config(&quot;path/to/config.toml&quot;)
+
+# Create encoder (assuming you have a custom encoder)
+encoder = MyCustomEncoder(
+    num_stations=length(scenario.stations),
+    encoding_dim=64
+)
+
+# Create neural network (assuming you have a custom network)
+network = MyNeuralNetwork(
+    input_dim=64,
+    output_dim=length(scenario.stations)
+)
+
+# Create neuronal strategy
+strategy = NeuronalStrategy(
+    encoder, 
+    network;
+    trigger_on_dispatch=false,
+    trigger_on_free=true
+)
+
+# Run simulation
+results = simulate_scenario(scenario, strategy)</code></pre><h3 id="Custom-Encoder-Example"><a class="docs-heading-anchor" href="#Custom-Encoder-Example">Custom Encoder Example</a><a id="Custom-Encoder-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Encoder-Example" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Define custom encoder
+struct MyEncoder &lt;: AbstractEncoder
+    num_stations::Int
+    encoding_dim::Int
+end
+
+# Implement required method
+function encode_state(
+    encoder::MyEncoder, 
+    sim::JEMSS.Simulation, 
+    ambulance_index::Int
+)::Vector{Float64}
+    # Extract relevant information
+    ambulance = sim.ambulances[ambulance_index]
+    
+    # Build encoded state vector
+    encoded = Float64[]
+    
+    # Add ambulance features
+    push!(encoded, ambulance.station.index / encoder.num_stations)
+    push!(encoded, length(sim.calls) / 100.0)
+    
+    # Add station occupancy features
+    for station in sim.stations
+        available = count(a -&gt; a.status == ambulanceIdle &amp;&amp; 
+                             a.station.index == station.index, 
+                           sim.ambulances)
+        push!(encoded, available / length(sim.ambulances))
+    end
+    
+    # Pad or truncate to encoding_dim
+    while length(encoded) &lt; encoder.encoding_dim
+        push!(encoded, 0.0)
+    end
+    
+    return encoded[1:encoder.encoding_dim]
+end</code></pre><h3 id="Custom-Neural-Network-Example"><a class="docs-heading-anchor" href="#Custom-Neural-Network-Example">Custom Neural Network Example</a><a id="Custom-Neural-Network-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Neural-Network-Example" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Define custom network
+struct SimpleFFN &lt;: AbstractNeuralNetwork
+    weights::Matrix{Float64}
+    bias::Vector{Float64}
+end
+
+# Implement required method
+function forward(
+    network::SimpleFFN, 
+    input::Vector{Float64}
+)::Vector{Float64}
+    # Simple feedforward computation
+    output = network.weights * input .+ network.bias
+    return output
+end</code></pre><hr/><h2 id="Integration-with-Neuroevolution"><a class="docs-heading-anchor" href="#Integration-with-Neuroevolution">Integration with Neuroevolution</a><a id="Integration-with-Neuroevolution-1"></a><a class="docs-heading-anchor-permalink" href="#Integration-with-Neuroevolution" title="Permalink"></a></h2><p>The <code>NeuronalStrategy</code> is designed to work seamlessly with neuroevolution algorithms. The strategy&#39;s mutable nature allows algorithms to:</p><ol><li><strong>Modify network weights</strong> during evolution</li><li><strong>Evaluate fitness</strong> through simulation</li><li><strong>Select and reproduce</strong> successful policies</li></ol><p>Example workflow with a genetic algorithm:</p><pre><code class="language-julia hljs"># Initialize population of strategies
+population = [
+    NeuronalStrategy(encoder, create_random_network())
+    for _ in 1:population_size
+]
+
+# Evolution loop
+for generation in 1:num_generations
+    # Evaluate fitness
+    fitness = [evaluate(strategy, scenario) for strategy in population]
+    
+    # Select parents
+    parents = selection(population, fitness)
+    
+    # Create offspring
+    offspring = crossover_and_mutate(parents)
+    
+    # Replace population
+    population = offspring
+end
+
+# Use best strategy
+best_strategy = population[argmax(fitness)]
+final_results = simulate_scenario(scenario, best_strategy)</code></pre><hr/><h2 id="See-Also"><a class="docs-heading-anchor" href="#See-Also">See Also</a><a id="See-Also-1"></a><a class="docs-heading-anchor-permalink" href="#See-Also" title="Permalink"></a></h2><ul><li><strong><a href="../strategies/#Strategy-Development-Guide">Strategy Development Guide</a></strong> - General strategy development guide</li><li><strong><a href="../simulation_state/#Simulation-State-Reference">Simulation State Reference</a></strong> - Complete details on all available state </li><li><strong><a href="../api/#API-Reference">API Reference</a></strong> - Complete function documentation</li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simulation_state/">« Simulation State</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Monday 27 October 2025 18:44">Monday 27 October 2025</span>. Using Julia version 1.11.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
