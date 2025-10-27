@@ -28,9 +28,7 @@ jobs:
         shell: julia --color=yes --project=docs {0}
         run: |
           using Pkg
-          # Añadir dependencias no registradas primero
           Pkg.add(url="https://github.com/uoa-ems-research/JEMSS.jl")
-          # Desarrollar el paquete principal
           Pkg.develop(PackageSpec(path=pwd()))
           Pkg.instantiate()
           
