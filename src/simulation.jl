@@ -388,14 +388,14 @@ end
     log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
                     strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Any})
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Union{Nothing, Any})
 
 If the logger is not nothing, creates and add an entry of the move up decision in de logger registry.
 """
 function log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
                     strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Vector{Any})
+                    ambStations::Vector{JEMSS.Station}, strategy_output::Union{Nothing, Any})
     if !isnothing(logger)
         encoded_state = encode_state(logger.encoder, sim, ambulance.index)
         

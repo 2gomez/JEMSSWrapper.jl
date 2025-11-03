@@ -45,25 +45,19 @@ using JEMSSWrapper
 # Load scenario
 scenario = load_scenario_from_config("auckland", "base.toml")
 
-# Create simulation 
-sim = create_simulation_instance(scenario)
-
-# Modify calls or ambulances if needed (optional)
-scenario_custom = update_scenario_calls(scenario, "custom_calls.csv")
-scenario_custom = update_scenario_ambulances(scenario, "custom_ambulances.csv")
-
 # Define a custom strategy
 struct MyStrategy <: AbstractMoveUpStrategy end
 
 JEMSSWrapper.should_trigger_on_dispatch(::MyStrategy, sim) = true
 JEMSSWrapper.should_trigger_on_free(::MyStrategy, sim) = false
-JEMSSWrapper.decide_moveup(::MyStrategy, sim, amb) = ([], [])
+JEMSSWrapper.decide_moveup(::MyStrategy, sim, amb) = ([], [], [])
 
-# Run simulation
-simulate_custom!(sim; moveup_strategy=MyStrategy())
+# Run a simulation instance from the scenario
+sim = simulate_scenario!(sim; moveup_strategy=MyStrategy())
 
-# Get resutls
-println("Average response time: ", JEMSS.getAvgCallResponseDuration(sim))
+# Get results
+avg_response_time = get_metric(sim, :avg_response_time) # in days
+println("Average response time: $(avg_response_time * 24 * 60) minutes") 
 ```
 
 ## Documentation

@@ -4,12 +4,12 @@
 Base type for neural network architectures used in decision making.
 
 All concrete networks must implement:
-- `forward(network, input) -> Vector{Float64}`
+- `forward(network, input) -> Vector{Float32}`
 """
 abstract type AbstractNeuralNetwork end
 
 """
-    forward(network::AbstractNeuralNetwork, input::Vector{Float64}) -> Vector{Float64}
+    forward(network::AbstractNeuralNetwork, input::Vector{Float32}) -> Vector{Float32}
 
 Perform forward pass through the neural network.
 
@@ -18,9 +18,9 @@ Perform forward pass through the neural network.
 - `input`: Input vector
 
 # Returns
-- `Vector{Float64}`: Network output (typically action probabilities or station scores)
+- `Vector{Float32}`: Network output (typically action probabilities or station scores)
 """
-function forward(network::AbstractNeuralNetwork, input::Vector{Float64})
+function forward(network::AbstractNeuralNetwork, input::Vector{Float32})
     error("forward not implemented for $(typeof(network))")
 end
 
