@@ -37,8 +37,6 @@ function load_scenario_from_config(scenario_name::String,
                                   calls_path::String = "",
                                   scenarios_dir::String = SCENARIOS_DIR)
     
-    @info "Loading scenario from config: $scenarios_dir/$scenario_name/configs/$config_name"
-    
     config_file = endswith(config_name, ".toml") ? config_name : "$config_name.toml"
     scenario_path = joinpath(scenarios_dir, scenario_name)
     config_path = joinpath(scenario_path, "configs", config_file)
@@ -124,7 +122,6 @@ Internal function to load scenario from ScenarioConfig.
 function load_scenario_internal(sim_config::ScenarioConfig, 
                                ambulances_path::String, 
                                calls_path::String)
-    @info "Initializing simulation..."
     base_sim = initialize_simulation(sim_config)
     calls = initialize_calls(base_sim, calls_path)
     ambulances = initialize_ambulances(ambulances_path)
@@ -132,8 +129,6 @@ function load_scenario_internal(sim_config::ScenarioConfig,
     metadata = scenario_config_to_dict(sim_config)
     metadata["ambulances_path"] = ambulances_path
     metadata["calls_path"] = calls_path 
-
-    @info "Scenario loaded successfully!"
     
     return ScenarioData(base_sim, calls, ambulances, metadata)
 end

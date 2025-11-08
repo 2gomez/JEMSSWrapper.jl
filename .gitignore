@@ -1,3 +1,5 @@
+examples/scenarios/*/models
+
 # Julia
 *.jl.cov
 *.jl.*.cov
