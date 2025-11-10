@@ -1,40 +1,16 @@
 """
-    MoveUpDecision
-
-Represents a single ambulance relocation decision.
-
-# Fields
-- `ambulance_index::Int`: Index of the ambulance that was moved
-- `from_station::Int`: Origin station index
-- `to_station::Int`: Target station index
-- `timestamp::Float64`: Simulation time when decision was made
-"""
-struct MoveUpDecision
-    ambulance_index::Int
-    from_station::Int
-    to_station::Int
-    timestamp::Float64
-end
-
-"""
     MoveUpLogEntry
 
 Complete log entry for a move-up decision event.
 
 # Fields
-- `timestamp::Float64`: Simulation time when move-up was triggered
-- `triggering_ambulance::Int`: Index of ambulance that triggered the move-up consideration
-- `encoded_state::Vector{Float64}`: Encoded simulation state using the logger's encoder
+- `encoded_state::Vector{Float32}`: Encoded simulation state using the logger's encoder
 - `strategy_output::Any`: Raw output from the strategy (e.g., neural network output vector, optimization result)
-- `decisions::Vector{MoveUpDecision}`: List of relocation decisions made (can be multiple ambulances)
 - `strategy_type::String`: Name of the strategy that made the decision
 """
 struct MoveUpLogEntry
-    timestamp::Float64
-    triggering_ambulance::Int
-    encoded_state::Vector{Float64}
+    encoded_state::Vector{Float32}
     strategy_output::Any
-    decisions::Vector{MoveUpDecision}
     strategy_type::String
 end
 
@@ -65,11 +41,9 @@ mutable struct MoveUpLogger
 end
 
 """
-    create_log_entry(strategy::AbstractMoveUpStrategy, sim::JEMSS.Simulation,
-                    triggering_ambulance::JEMSS.Ambulance, encoded_state::Vector{Float64},
-                    strategy_output::Any, movable_ambulances::Vector{JEMSS.Ambulance},
-                    target_stations::Vector{JEMSS.Station}; metadata::Dict{Symbol,Any}=Dict{Symbol,Any}())
-
+    create_log_entry(strategy::AbstractMoveUpStrategy, 
+                    encoded_state::Vector{Float32},
+                    strategy_output::Vector{Float32})
 Helper function to create a log entry from move-up decision data.
 
 This function is called by strategies that have a logger to create standardized log entries.
@@ -77,43 +51,21 @@ Strategies can override this method if they need custom logging behavior.
 
 # Arguments
 - `strategy::AbstractMoveUpStrategy`: The strategy instance
-- `sim::JEMSS.Simulation`: Current simulation state
-- `triggering_ambulance::JEMSS.Ambulance`: Ambulance that triggered the move-up consideration
-- `encoded_state::Vector{Float64}`: Encoded state vector (typically from logger's encoder)
+- `encoded_state::Vector{Float32}`: Encoded state vector (typically from logger's encoder)
 - `strategy_output::Any`: Raw output from the strategy (e.g., NN output, optimization result)
-- `movable_ambulances::Vector{JEMSS.Ambulance}`: Ambulances that were moved
-- `target_stations::Vector{JEMSS.Station}`: Target stations for the ambulances (parallel to movable_ambulances)
 
 # Returns
 - `MoveUpLogEntry`: Complete log entry ready to be added to a logger
 """
 function create_log_entry(
     strategy::AbstractMoveUpStrategy,
-    sim::JEMSS.Simulation,
-    triggering_ambulance::JEMSS.Ambulance,
-    encoded_state::Vector{Float64},
-    strategy_output::Any,
-    movable_ambulances::Vector{JEMSS.Ambulance},
-    target_stations::Vector{JEMSS.Station}
+    encoded_state::Vector{Float32},
+    strategy_output::Vector{Float64},
 )
-    # Create decision records for each ambulance-station pair
-    decisions = [
-        MoveUpDecision(
-            amb.index,
-            amb.stationIndex,
-            station.index,
-            sim.time
-        )
-        for (amb, station) in zip(movable_ambulances, target_stations)
-    ]
-    
     # Create and return log entry
     return MoveUpLogEntry(
-        sim.time,
-        triggering_ambulance.index,
         encoded_state,
         strategy_output,
-        decisions,
         string(typeof(strategy))
     )
 end
@@ -150,24 +102,21 @@ end
 # ============================================================================
 # DataFrame Conversion
 # ============================================================================
-
 """
     to_dataframe(logger::MoveUpLogger) -> DataFrame
 
 Convert logged entries to a DataFrame with one row per log entry.
 
 # Column structure
-- `timestamp`: Simulation time when move-up was triggered
-- `triggering_ambulance`: Index of ambulance that triggered the move-up
 - `strategy_type`: Name of the strategy used
-- `num_decisions`: Number of ambulances relocated in this move-up event
-- `state_1, state_2, ..., state_n`: Encoded state dimensions
-- `output_1, output_2, ..., output_m`: Strategy output dimensions (if output is a vector)
+- `state_1, state_2, ..., state_n`: Encoded state dimensions, according to encoder.features_names
+- `output_1, output_2, ...`: Strategy output dimensions
 
 # Notes
-- If an entry has multiple decisions, only the count is recorded (num_decisions)
-- If strategy_output is not a vector, it is stored as a single column `output`
+- State column names come from `encoder.features_names`
+- Output columns are numbered generically (output_1, output_2, etc.)
 - Returns an empty DataFrame if no entries are logged
+- All entries are assumed to have the same state and output dimensions
 """
 function to_dataframe(logger::MoveUpLogger)
     entries = get_entries(logger)
@@ -177,70 +126,53 @@ function to_dataframe(logger::MoveUpLogger)
         return DataFrame()
     end
     
-    # Determine dimensions
-    state_dim = length(entries[1].encoded_state)
+    # Get feature names from encoder
+    state_feature_names = logger.encoder.features_names
     
-    # Check if outputs are vectors and get dimension
-    first_output = entries[1].strategy_output
-    output_is_vector = first_output isa AbstractVector
-    output_dim = output_is_vector ? length(first_output) : 1
+    # Determine dimensions from first entry
+    first_entry = entries[1]
+    state_dim = length(first_entry.encoded_state)
+    output_dim = length(first_entry.strategy_output)
+    
+    # Validate that feature names match state dimension
+    if length(state_feature_names) != state_dim
+        @warn "Feature names count ($(length(state_feature_names))) doesn't match state dimension ($state_dim). Using generic names."
+        state_feature_names = ["state_$j" for j in 1:state_dim]
+    end
     
     # Pre-allocate vectors for each column
     n = length(entries)
-    timestamps = Vector{Float64}(undef, n)
-    triggering_ambulances = Vector{Int}(undef, n)
     strategy_types = Vector{String}(undef, n)
-    num_decisions = Vector{Int}(undef, n)
     
-    # State columns
-    state_data = Matrix{Float64}(undef, n, state_dim)
+    # State columns (as Matrix for efficiency)
+    state_data = Matrix{Float32}(undef, n, state_dim)
     
-    # Output columns
-    if output_is_vector
-        output_data = Matrix{Float64}(undef, n, output_dim)
-    else
-        output_data = Vector{Any}(undef, n)
-    end
+    # Output columns (type depends on what strategies return, but typically Float64)
+    # We'll infer the type from the first entry
+    output_type = eltype(first_entry.strategy_output)
+    output_data = Matrix{output_type}(undef, n, output_dim)
     
     # Fill data
     for (i, entry) in enumerate(entries)
-        timestamps[i] = entry.timestamp
-        triggering_ambulances[i] = entry.triggering_ambulance
-        strategy_types[i] = entry.strategy_type
-        num_decisions[i] = length(entry.decisions)
-        
-        # State
+        # State (already Float32)
         state_data[i, :] = entry.encoded_state
         
-        # Output
-        if output_is_vector
-            output_data[i, :] = entry.strategy_output
-        else
-            output_data[i] = entry.strategy_output
-        end
+        # Output (convert to appropriate type)
+        output_data[i, :] = entry.strategy_output
     end
     
-    # Build DataFrame
-    df = DataFrame(
-        timestamp = timestamps,
-        triggering_ambulance = triggering_ambulances,
-        strategy_type = strategy_types,
-        num_decisions = num_decisions
-    )
+    # Build DataFrame starting with metadata
+    df = DataFrame()
     
-    # Add state columns
-    for j in 1:state_dim
-        df[!, Symbol("state_$j")] = state_data[:, j]
+    # Add state columns with feature names from encoder
+    for (j, feature_name) in enumerate(state_feature_names)
+        df[!, Symbol(feature_name)] = state_data[:, j]
     end
     
-    # Add output columns
-    if output_is_vector
-        for j in 1:output_dim
-            df[!, Symbol("output_$j")] = output_data[:, j]
-        end
-    else
-        df[!, :output] = output_data
+    # Add output columns with generic names
+    for j in 1:output_dim
+        df[!, Symbol("output_$j")] = output_data[:, j]
     end
-    
-    return df
+
+    return df 
 end

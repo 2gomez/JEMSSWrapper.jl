@@ -167,6 +167,30 @@ function update_scenario_calls(scenario::ScenarioData, calls_path::String)
 end
 
 """
+    update_scenario_calls(scenario::ScenarioData, calls::Vector{JEMSS.Call}) -> ScenarioData
+
+Update calls in an existing scenario using a vector of Call objects.
+
+Creates a new `ScenarioData` with modified calls while preserving stations, hospitals,
+and road network. Useful for programmatically generating or modifying demand patterns.
+
+# Arguments
+- `scenario::ScenarioData`: Original scenario
+- `calls::Vector{JEMSS.Call}`: Vector of call objects
+
+# Returns
+- `ScenarioData`: New scenario with updated calls
+"""
+function update_scenario_calls(scenario::ScenarioData, calls::Vector{JEMSS.Call})
+    return ScenarioData(
+        scenario.base_simulation,
+        calls,
+        scenario.ambulances,
+        merge(scenario.metadata, Dict("calls_source" => "custom_vector"))
+    )
+end
+
+"""
     update_scenario_ambulances(scenario::ScenarioData, ambulances_path::String) -> ScenarioData
 
 Update ambulances in an existing scenario without reloading infrastructure.
@@ -195,5 +219,28 @@ function update_scenario_ambulances(scenario::ScenarioData, ambulances_path::Str
         scenario.calls,
         ambulances, 
         merge(scenario.metadata, Dict("ambulances_path" => ambulances_path))
+    )
+end
+"""
+    update_scenario_ambulances(scenario::ScenarioData, ambulances::Vector{JEMSS.Ambulance}) -> ScenarioData
+
+Update ambulances in an existing scenario using a vector of Ambulance objects.
+
+Creates a new `ScenarioData` with modified ambulance fleet while preserving infrastructure
+and calls. Useful for programmatically modifying the fleet or using custom ambulance configurations.
+
+# Arguments
+- `scenario::ScenarioData`: Original scenario
+- `ambulances::Vector{JEMSS.Ambulance}`: Vector of ambulance objects
+
+# Returns
+- `ScenarioData`: New scenario with updated ambulances
+"""
+function update_scenario_ambulances(scenario::ScenarioData, ambulances::Vector{JEMSS.Ambulance})
+    return ScenarioData(
+        scenario.base_simulation,
+        scenario.calls,
+        ambulances,
+        merge(scenario.metadata, Dict("ambulances_source" => "custom_vector"))
     )
 end

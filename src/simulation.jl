@@ -361,8 +361,8 @@ function execute_moveup_strategy!(sim::JEMSS.Simulation, event::JEMSS.Event, amb
                                  strategy::AbstractMoveUpStrategy, logger::Union{Nothing, MoveUpLogger})
     # Get move-up decisions from strategy
     (movableAmbs, ambStations, strategy_output) = decide_moveup(strategy, sim, ambulance)
-    
-    log_moveup!(logger, sim, ambulance, strategy, movableAmbs, ambStations, strategy_output)
+        
+    log_moveup!(logger, sim, ambulance, strategy, strategy_output)
     
     # Execute the moves (same as original JEMSS logic)
     for i in eachindex(movableAmbs)
@@ -387,26 +387,24 @@ end
 """
     log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
-                    strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Union{Nothing, Any})
+                    strategy::AbstractMoveUpStrategy, strategy_output::Union{Nothing, Any})
 
 If the logger is not nothing, creates and add an entry of the move up decision in de logger registry.
 """
 function log_moveup!(logger::Union{Nothing, MoveUpLogger}, 
                     sim::JEMSS.Simulation, ambulance::JEMSS.Ambulance, 
-                    strategy::AbstractMoveUpStrategy, movableAmbs::Vector{JEMSS.Ambulance}, 
-                    ambStations::Vector{JEMSS.Station}, strategy_output::Union{Nothing, Any})
+                    strategy::AbstractMoveUpStrategy, strategy_output::Union{Nothing, Any})
     if !isnothing(logger)
         encoded_state = encode_state(logger.encoder, sim, ambulance.index)
-        
+
+        if length(strategy_output) == 0
+            strategy_output = get_default_network_output(logger.encoder, sim, ambulance)
+        end
+
         log_entry = create_log_entry(
             strategy, 
-            sim, 
-            ambulance,
             encoded_state,
-            strategy_output,
-            movableAmbs,
-            ambStations
+            strategy_output
         )
         
         add_entry!(logger, log_entry)
