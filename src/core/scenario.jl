@@ -247,42 +247,43 @@ function update_scenario_ambulances(scenario::ScenarioData, ambulances::Vector{J
 end
 
 """
-    randomize_ambulance_stations(scenario::ScenarioData) -> Vector{Ambulance}
+    update_scenario_ambulances(scenario::ScenarioData, station_indices::Vector{Int}) -> ScenarioData
 
-Generate a random initial deployment of ambulances across available stations.
-
-Assigns each ambulance to a unique station by random permutation. This ensures
-no two ambulances start at the same station, which is useful for exploring
-different initial configurations in optimization experiments.
+Creates a new scenario with updated ambulance station assignments.
 
 # Arguments
-- `scenario::ScenarioData`: The scenario containing ambulances and station information
+- `scenario::ScenarioData`: Original scenario
+- `station_indices::Vector{Int}`: New station index for each ambulance
 
 # Returns
-- `Vector{Ambulance}`: A new vector of ambulances with randomized `stationIndex` assignments
+- `ScenarioData`: New scenario with updated ambulance locations
+"""
+function update_scenario_ambulances(scenario::ScenarioData, station_indices::Vector{Int})
+    @assert length(station_indices) == length(scenario.ambulances) "Mismatch in ambulance count"
+    
+    # Create new ambulances with updated stations
+    ambulances = deepcopy(scenario.ambulances)
+    num_ambulances = length(ambulances)
+    for i in 1:num_ambulances
+        ambulances[i].stationIndex = station_indices[i]
+    end
+
+    return update_scenario_ambulances(scenario, ambulances)
+end
+
+"""
+    randomize_ambulance_stations(scenario::ScenarioData) -> Vector{Int}
+
+Generates random station assignments for all ambulances in the scenario.
+Each ambulance is assigned to a random valid station index.
+
+# Returns
+- `Vector{Int}`: Station indices for each ambulance
 """
 function randomize_ambulance_stations(scenario::ScenarioData)
-    # Input validation
-    num_ambulances = length(scenario.ambulances)
-    num_stations = scenario.base_simulation.numStations
+    n_ambulances = length(scenario.ambulances)
+    n_stations = scenario.base_simulation.numStations
     
-    if num_ambulances > num_stations
-        throw(ArgumentError(
-            "Cannot assign $num_ambulances ambulances to $num_stations stations. " *
-            "Number of ambulances must not exceed number of stations."
-        ))
-    end
-    
-    # Create modified copies with random station assignments
-    station_indices = randperm(num_stations)[1:num_ambulances]
-    
-    return [
-        Ambulance(
-            amb.index,
-            station_indices[i],  # Random station
-            amb.class,
-            amb.classType
-        )
-        for (i, amb) in enumerate(scenario.ambulances)
-    ]
+    # Random assignment: each ambulance to a random station
+    return randperm(n_stations)[1:n_ambulances]
 end
