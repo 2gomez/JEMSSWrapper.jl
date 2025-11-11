@@ -221,6 +221,7 @@ function update_scenario_ambulances(scenario::ScenarioData, ambulances_path::Str
         merge(scenario.metadata, Dict("ambulances_path" => ambulances_path))
     )
 end
+
 """
     update_scenario_ambulances(scenario::ScenarioData, ambulances::Vector{JEMSS.Ambulance}) -> ScenarioData
 
@@ -243,4 +244,45 @@ function update_scenario_ambulances(scenario::ScenarioData, ambulances::Vector{J
         ambulances,
         merge(scenario.metadata, Dict("ambulances_source" => "custom_vector"))
     )
+end
+
+"""
+    randomize_ambulance_stations(scenario::ScenarioData) -> Vector{Ambulance}
+
+Generate a random initial deployment of ambulances across available stations.
+
+Assigns each ambulance to a unique station by random permutation. This ensures
+no two ambulances start at the same station, which is useful for exploring
+different initial configurations in optimization experiments.
+
+# Arguments
+- `scenario::ScenarioData`: The scenario containing ambulances and station information
+
+# Returns
+- `Vector{Ambulance}`: A new vector of ambulances with randomized `stationIndex` assignments
+"""
+function randomize_ambulance_stations(scenario::ScenarioData)
+    # Input validation
+    num_ambulances = length(scenario.ambulances)
+    num_stations = scenario.base_simulation.numStations
+    
+    if num_ambulances > num_stations
+        throw(ArgumentError(
+            "Cannot assign $num_ambulances ambulances to $num_stations stations. " *
+            "Number of ambulances must not exceed number of stations."
+        ))
+    end
+    
+    # Create modified copies with random station assignments
+    station_indices = randperm(num_stations)[1:num_ambulances]
+    
+    return [
+        Ambulance(
+            amb.index,
+            station_indices[i],  # Random station
+            amb.class,
+            amb.classType
+        )
+        for (i, amb) in enumerate(scenario.ambulances)
+    ]
 end

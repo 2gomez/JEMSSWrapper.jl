@@ -74,7 +74,7 @@ function decide_moveup(
     network_output = forward(strategy.network, encoded_state)
     
     # Select best station (highest score)
-    station_index = decode_decision(strategy.encoder, network_output)
+    station_index = decode_decision(strategy.encoder, sim, ambulance_index, network_output)
     
     # Prepare result
     movable_ambulances = [sim.ambulances[ambulance_index]]

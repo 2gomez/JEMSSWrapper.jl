@@ -8,6 +8,7 @@ module JEMSSWrapper
 
 using Dates
 using DataFrames
+using Random
 using JEMSS
 using TOML
 using Printf
@@ -42,6 +43,7 @@ export
     load_scenario_from_config, 
     update_scenario_calls, 
     update_scenario_ambulances,
+    randomize_ambulance_stations,
     
     # Simulation from an scenario 
     simulate_scenario,

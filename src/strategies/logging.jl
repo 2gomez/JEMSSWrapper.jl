@@ -60,7 +60,7 @@ Strategies can override this method if they need custom logging behavior.
 function create_log_entry(
     strategy::AbstractMoveUpStrategy,
     encoded_state::Vector{Float32},
-    strategy_output::Vector{Float64},
+    strategy_output::Vector{Float32},
 )
     # Create and return log entry
     return MoveUpLogEntry(
